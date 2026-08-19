@@ -1,0 +1,174 @@
+import { postToHost, onHostMessage } from '../app/vscodeApi';
+import { QueryErrorPayload, QueryResultPayload } from '../../../src/types/workbook';
+import { appState } from '../state/appState';
+
+export class QueryPanel {
+  private container: HTMLElement;
+  private editor!: HTMLTextAreaElement;
+  private resultGrid!: HTMLDivElement;
+  private errorBox!: HTMLDivElement;
+  private lastResult: QueryResultPayload | null = null;
+
+  constructor(container: HTMLElement) {
+    this.container = container;
+    this.container.classList.add('sheetlab-panel', 'sheetlab-query-panel');
+    this.container.style.display = 'none';
+    this.build();
+    onHostMessage((msg) => {
+      if (msg.type === 'queryResult') this.renderResult(msg.result);
+      if (msg.type === 'queryError') this.renderError(msg.error);
+    });
+  }
+
+  open(): void {
+    this.container.style.display = 'flex';
+    this.editor.focus();
+  }
+
+  close(): void {
+    this.container.style.display = 'none';
+  }
+
+  toggle(): void {
+    this.container.style.display === 'none' ? this.open() : this.close();
+  }
+
+  private build(): void {
+    const header = document.createElement('div');
+    header.className = 'sheetlab-panel-header';
+    header.innerHTML = `<span>Query (SheetLab Query Language)</span>`;
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.className = 'sheetlab-panel-close';
+    closeBtn.addEventListener('click', () => this.close());
+    header.appendChild(closeBtn);
+
+    const hint = document.createElement('div');
+    hint.className = 'sheetlab-query-hint';
+    hint.textContent =
+      'SELECT col, SUM(col2) AS total FROM SheetName WHERE col3 > 10 GROUP BY col ORDER BY total DESC LIMIT 100. ' +
+      'Not full SQL -- no joins or subqueries.';
+
+    this.editor = document.createElement('textarea');
+    this.editor.className = 'sheetlab-query-editor';
+    this.editor.rows = 4;
+    this.editor.placeholder = `SELECT * FROM ${appState.activeSheet || 'Sheet1'}`;
+    this.editor.spellcheck = false;
+
+    const runBtn = document.createElement('button');
+    runBtn.className = 'sheetlab-btn-primary';
+    runBtn.textContent = 'Run Query';
+    runBtn.addEventListener('click', () => this.run());
+    this.editor.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        this.run();
+      }
+    });
+
+    const actions = document.createElement('div');
+    actions.className = 'sheetlab-query-actions';
+    const copyBtn = this.actionButton('Copy Result', () => this.copyResult());
+    const newSheetBtn = this.actionButton('New Worksheet From Result', () => this.exportToNewSheet());
+    actions.appendChild(copyBtn);
+    actions.appendChild(newSheetBtn);
+
+    this.errorBox = document.createElement('div');
+    this.errorBox.className = 'sheetlab-query-error';
+
+    this.resultGrid = document.createElement('div');
+    this.resultGrid.className = 'sheetlab-query-result-grid';
+
+    this.container.appendChild(header);
+    this.container.appendChild(hint);
+    this.container.appendChild(this.editor);
+    this.container.appendChild(runBtn);
+    this.container.appendChild(this.errorBox);
+    this.container.appendChild(actions);
+    this.container.appendChild(this.resultGrid);
+  }
+
+  private actionButton(label: string, onClick: () => void): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.className = 'sheetlab-btn-secondary';
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
+  private run(): void {
+    this.errorBox.textContent = '';
+    this.errorBox.style.display = 'none';
+    postToHost({ type: 'runQuery', sql: this.editor.value });
+  }
+
+  private renderError(error: QueryErrorPayload): void {
+    this.errorBox.style.display = 'block';
+    const parts = [error.message];
+    if (error.column !== undefined) parts.push(`(near position ${error.column})`);
+    if (error.expression) parts.push(`-- "${error.expression}"`);
+    this.errorBox.textContent = parts.join(' ');
+    this.resultGrid.innerHTML = '';
+    this.lastResult = null;
+  }
+
+  private renderResult(result: QueryResultPayload): void {
+    this.lastResult = result;
+    this.resultGrid.innerHTML = '';
+
+    const meta = document.createElement('div');
+    meta.className = 'sheetlab-query-result-meta';
+    meta.textContent = `${result.rowCount.toLocaleString()} row(s) in ${result.elapsedMs}ms${result.truncated ? ' (truncated)' : ''}`;
+    this.resultGrid.appendChild(meta);
+
+    const table = document.createElement('table');
+    table.className = 'sheetlab-result-table';
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    result.columns.forEach((c) => {
+      const th = document.createElement('th');
+      th.textContent = c;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    result.rows.slice(0, 500).forEach((row) => {
+      const tr = document.createElement('tr');
+      row.forEach((val) => {
+        const td = document.createElement('td');
+        td.textContent = val === null ? '' : String(val);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    this.resultGrid.appendChild(table);
+  }
+
+  private copyResult(): void {
+    if (!this.lastResult) return;
+    const text = [
+      this.lastResult.columns.join('\t'),
+      ...this.lastResult.rows.map((r) => r.map((v) => (v === null ? '' : String(v))).join('\t')),
+    ].join('\n');
+    navigator.clipboard?.writeText(text).catch(() => {
+      /* clipboard API may be restricted; user can still select from the table */
+    });
+  }
+
+  private exportToNewSheet(): void {
+    if (!this.lastResult) return;
+    const name = prompt('New worksheet name for query result:', 'Query Result');
+    if (!name) return;
+    postToHost({ type: 'createSheet', name });
+    postToHost({
+      type: 'pasteRange',
+      sheetName: name,
+      startRow: 0,
+      startCol: 0,
+      data: [this.lastResult.columns, ...this.lastResult.rows.map((r) => r.map((v) => (v === null ? '' : String(v))))],
+    });
+  }
+}

@@ -1,0 +1,581 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--vscode-font-family, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  overflow: hidden;
+}
+
+.sheetlab-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ---------------- Toolbar ---------------- */
+.sheetlab-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.sheetlab-toolbar-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding-right: 8px;
+  border-right: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.sheetlab-toolbar-group:last-child { border-right: none; }
+
+.sheetlab-toolbar-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--vscode-foreground);
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sheetlab-toolbar-btn:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128,128,128,0.2));
+}
+
+.sheetlab-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sheetlab-dirty-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+  display: inline-block;
+}
+
+.sheetlab-toolbar-color-input {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.4));
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sheetlab-toolbar-format-select {
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.sheetlab-toolbar-custom-format {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.sheetlab-toolbar-custom-format-input {
+  width: 140px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+/* ---------------- Name box / formula bar ---------------- */
+.sheetlab-bars-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  flex-shrink: 0;
+}
+
+.sheetlab-name-box-container { width: 100px; flex-shrink: 0; }
+.sheetlab-formula-bar-container { flex: 1; min-width: 0; }
+
+.sheetlab-name-box, .sheetlab-formula-bar {
+  display: flex;
+  align-items: center;
+  height: 28px;
+}
+
+.sheetlab-name-box-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  padding: 0 8px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+}
+
+.sheetlab-name-box-invalid {
+  outline: 1px solid var(--vscode-inputValidation-errorBorder, #f14c4c);
+}
+
+.sheetlab-fx-icon {
+  padding: 0 6px;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.sheetlab-formula-input {
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  padding: 0 6px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+}
+
+.sheetlab-name-box-input:focus, .sheetlab-formula-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+/* ---------------- Grid ---------------- */
+.sheetlab-grid-container { flex: 1; min-height: 0; position: relative; }
+
+.sheetlab-grid-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sheetlab-col-headers {
+  display: flex;
+  height: 22px;
+  flex-shrink: 0;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  overflow: hidden;
+  position: relative;
+}
+
+.sheetlab-corner {
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  flex-shrink: 0;
+}
+
+.sheetlab-col-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  height: 22px;
+  user-select: none;
+  cursor: pointer;
+}
+
+.sheetlab-col-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.sheetlab-grid-scroll {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.sheetlab-grid-canvas {
+  position: relative;
+}
+
+.sheetlab-row-header-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.sheetlab-row-header {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  user-select: none;
+  cursor: pointer;
+  /* The parent .sheetlab-row-header-layer sets pointer-events: none so it
+     never intercepts clicks meant for the grid cells beneath it while it's
+     being translated for horizontal-scroll pinning; re-enable pointer
+     events on the header cells themselves so they stay clickable. */
+  pointer-events: auto;
+}
+
+.sheetlab-row-resize-handle {
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 100%;
+  height: 4px;
+  cursor: row-resize;
+}
+
+.sheetlab-cell {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  cursor: cell;
+}
+
+.sheetlab-cell.sheetlab-gridlines {
+  border-right: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.15));
+  border-bottom: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.15));
+}
+
+.sheetlab-cell-number { justify-content: flex-end; }
+
+.sheetlab-cell-error {
+  color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.sheetlab-cell-selected {
+  background: var(--vscode-editor-selectionBackground, rgba(38,79,120,0.4));
+}
+
+.sheetlab-cell-active {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: -1px;
+  z-index: 2;
+}
+
+/* ---------------- Frozen panes ---------------- */
+.sheetlab-frozen-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.sheetlab-frozen-col-layer { z-index: 3; }
+.sheetlab-frozen-row-layer { z-index: 4; }
+.sheetlab-frozen-corner-layer { z-index: 5; }
+.sheetlab-frozen-row-header-layer { z-index: 6; }
+
+.sheetlab-frozen-cell {
+  pointer-events: auto;
+  background: var(--vscode-editor-background);
+  box-shadow: none;
+}
+
+.sheetlab-frozen-col-layer .sheetlab-frozen-cell {
+  border-right: 2px solid var(--vscode-focusBorder, #007acc);
+}
+
+.sheetlab-frozen-row-layer .sheetlab-frozen-cell {
+  border-bottom: 2px solid var(--vscode-focusBorder, #007acc);
+}
+
+/* ---------------- Excel Table styling ---------------- */
+.sheetlab-cell-in-table {
+  background: var(--vscode-editor-inactiveSelectionBackground, rgba(80,140,200,0.06));
+}
+
+.sheetlab-table-header {
+  font-weight: 600;
+  background: var(--vscode-list-hoverBackground, rgba(80,140,200,0.15));
+}
+
+.sheetlab-table-edge-top { border-top: 1px solid var(--vscode-focusBorder, #007acc) !important; }
+.sheetlab-table-edge-bottom { border-bottom: 1px solid var(--vscode-focusBorder, #007acc) !important; }
+.sheetlab-table-edge-left { border-left: 1px solid var(--vscode-focusBorder, #007acc) !important; }
+.sheetlab-table-edge-right { border-right: 1px solid var(--vscode-focusBorder, #007acc) !important; }
+
+.sheetlab-cell-editor {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font: inherit;
+  padding: 0 4px;
+}
+
+/* ---------------- Sheet tabs ---------------- */
+.sheetlab-sheet-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.sheetlab-sheet-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--vscode-foreground);
+  padding: 3px 10px;
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sheetlab-sheet-tab:hover { background: var(--vscode-toolbar-hoverBackground, rgba(128,128,128,0.2)); }
+
+.sheetlab-sheet-tab-active {
+  background: var(--vscode-tab-activeBackground, var(--vscode-editor-background));
+  border-bottom: 2px solid var(--vscode-focusBorder, #007acc);
+  font-weight: 600;
+}
+
+.sheetlab-sheet-tab-add {
+  background: transparent;
+  border: 1px dashed var(--vscode-widget-border, rgba(128,128,128,0.4));
+  color: var(--vscode-foreground);
+  border-radius: 3px;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+}
+
+/* ---------------- Status bar ---------------- */
+.sheetlab-status-bar {
+  padding: 2px 10px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-statusBar-background, var(--vscode-editorWidget-background));
+  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+/* ---------------- Panels (search/query/clean/filter) ---------------- */
+.sheetlab-panel {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  width: 380px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  border-radius: 4px;
+  padding: 10px;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+}
+
+.sheetlab-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.sheetlab-panel-close {
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.sheetlab-panel input, .sheetlab-panel select, .sheetlab-panel textarea {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  padding: 4px 6px;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 4px;
+  font-family: inherit;
+}
+
+.sheetlab-btn-primary, .sheetlab-btn-secondary {
+  border: none;
+  border-radius: 3px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.sheetlab-btn-primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.sheetlab-btn-primary:hover { background: var(--vscode-button-hoverBackground); }
+
+.sheetlab-btn-secondary {
+  background: var(--vscode-button-secondaryBackground, transparent);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.4));
+}
+
+.sheetlab-search-options {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.sheetlab-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.sheetlab-search-results, .sheetlab-query-result-grid {
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: 11px;
+  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  padding-top: 6px;
+}
+
+.sheetlab-search-result-item {
+  padding: 3px 4px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.sheetlab-search-result-item:hover { background: var(--vscode-list-hoverBackground); }
+
+.sheetlab-query-hint {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
+}
+
+.sheetlab-query-editor {
+  font-family: var(--vscode-editor-font-family, monospace);
+  resize: vertical;
+}
+
+.sheetlab-query-actions { display: flex; gap: 6px; margin: 6px 0; }
+
+.sheetlab-query-error {
+  display: none;
+  color: var(--vscode-errorForeground, #f14c4c);
+  font-size: 12px;
+  padding: 6px;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, #f14c4c);
+  border-radius: 3px;
+}
+
+.sheetlab-result-table { border-collapse: collapse; width: 100%; }
+.sheetlab-result-table th, .sheetlab-result-table td {
+  border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2));
+  padding: 3px 6px;
+  text-align: left;
+  white-space: nowrap;
+}
+.sheetlab-result-table th { background: var(--vscode-editorWidget-background); }
+
+.sheetlab-clean-op-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.sheetlab-clean-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.sheetlab-clean-row input { margin-bottom: 0; }
+
+.sheetlab-context-menu {
+  position: fixed;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  border-radius: 4px;
+  padding: 4px 0;
+  z-index: 100;
+  min-width: 120px;
+}
+
+.sheetlab-context-menu-item {
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.sheetlab-context-menu-item:hover { background: var(--vscode-list-hoverBackground); }
+
+.sheetlab-toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--vscode-notifications-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-notifications-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  z-index: 200;
+  max-width: 480px;
+}
+
+.sheetlab-toast-error {
+  border-color: var(--vscode-inputValidation-errorBorder, #f14c4c);
+}
+
+/* High contrast: rely on VS Code's own high-contrast variables above; just
+   ensure focus outlines remain visible. */
+.vscode-high-contrast .sheetlab-cell-active {
+  outline-width: 3px;
+}

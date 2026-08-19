@@ -1,0 +1,13 @@
+.vscode/**
+webview/src/**
+src/**
+tests/**
+.eslintrc.json
+.prettierrc.json
+tsconfig.json
+esbuild.js
+**/*.map
+**/*.ts
+node_modules/**
+!node_modules/exceljs/**
+.gitignore

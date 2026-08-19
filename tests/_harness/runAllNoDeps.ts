@@ -1,0 +1,14 @@
+import './miniMocha';
+import '../unit/cellRef.test';
+import '../unit/delimiterDetector.test';
+import '../unit/sortFilter.test';
+import '../unit/cleanup.test';
+import '../unit/queryParser.test';
+import '../unit/queryEngine.test';
+import '../unit/undoStack.test';
+import '../unit/clipboard.test';
+import '../unit/aggregation.test';
+import '../unit/rowColOps.test';
+import '../unit/visibilityAndTables.test';
+import '../unit/numberFormat.test';
+import '../unit/structuredReferences.test';

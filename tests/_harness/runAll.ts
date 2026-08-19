@@ -1,0 +1,11 @@
+import './miniMocha';
+import '../unit/cellRef.test';
+import '../unit/delimiterDetector.test';
+import '../unit/csvReaderWriter.test';
+import '../unit/sortFilter.test';
+import '../unit/cleanup.test';
+import '../unit/queryParser.test';
+import '../unit/queryEngine.test';
+import '../unit/undoStack.test';
+import '../unit/clipboard.test';
+import '../unit/aggregation.test';

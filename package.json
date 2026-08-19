@@ -1,0 +1,339 @@
+{
+  "name": "sheetlab",
+  "displayName": "SheetLab — Excel Viewer & Query",
+  "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
+  "version": "0.1.0",
+  "publisher": "AnandShah",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AnandShah10/sheetlab"
+  },
+  "bugs": {
+    "url": "https://github.com/AnandShah10/sheetlab/issues"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=18.0.0"
+  },
+  "categories": [
+    "Data Science",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "excel",
+    "xlsx",
+    "csv",
+    "spreadsheet",
+    "query",
+    "data"
+  ],
+  "activationEvents": [
+    "onLanguage:csv",
+    "onLanguage:tsv"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "sheetlab.excelEditor",
+        "displayName": "SheetLab Spreadsheet",
+        "selector": [
+          {
+            "filenamePattern": "*.xlsx"
+          },
+          {
+            "filenamePattern": "*.xlsm"
+          },
+          {
+            "filenamePattern": "*.xls"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "sheetlab.csvSpreadsheetEditor",
+        "displayName": "SheetLab Spreadsheet (CSV)",
+        "selector": [
+          {
+            "filenamePattern": "*.csv"
+          },
+          {
+            "filenamePattern": "*.tsv"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "sheetlab.openCsvAsSpreadsheet",
+        "title": "Open as Spreadsheet",
+        "category": "SheetLab",
+        "icon": "$(table)"
+      },
+      {
+        "command": "sheetlab.openAsText",
+        "title": "Open as Text",
+        "category": "SheetLab",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "sheetlab.refreshSpreadsheet",
+        "title": "Refresh Spreadsheet",
+        "category": "SheetLab",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "sheetlab.saveSpreadsheet",
+        "title": "Save Spreadsheet",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.exportAsXlsx",
+        "title": "Export as XLSX",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.exportAsCsv",
+        "title": "Export as CSV",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.runQuery",
+        "title": "Run Query",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.searchWorkbook",
+        "title": "Search Workbook",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.cleanData",
+        "title": "Clean Data",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.newWorksheet",
+        "title": "New Worksheet",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.goToCell",
+        "title": "Go To Cell",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.toggleFormulaBar",
+        "title": "Toggle Formula Bar",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.toggleGridlines",
+        "title": "Toggle Gridlines",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.freezePanes",
+        "title": "Freeze Panes at Selection",
+        "category": "SheetLab"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "sheetlab.openCsvAsSpreadsheet",
+          "when": "resourceExtname == .csv || resourceExtname == .tsv",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sheetlab.openAsText",
+          "when": "activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sheetlab.saveSpreadsheet",
+          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
+          "group": "navigation@2"
+        },
+        {
+          "command": "sheetlab.runQuery",
+          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
+          "group": "navigation@3"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "sheetlab.openCsvAsSpreadsheet",
+          "when": "resourceExtname == .csv || resourceExtname == .tsv",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "sheetlab.openAsText",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SheetLab",
+      "properties": {
+        "sheetlab.csv.delimiter": {
+          "type": "string",
+          "enum": [
+            "auto",
+            ",",
+            ";",
+            "\t",
+            "|"
+          ],
+          "default": "auto",
+          "description": "Delimiter used when opening a CSV/TSV as a spreadsheet."
+        },
+        "sheetlab.csv.encoding": {
+          "type": "string",
+          "enum": [
+            "utf8",
+            "utf8bom",
+            "latin1"
+          ],
+          "default": "utf8",
+          "description": "Text encoding used to read/write CSV/TSV files."
+        },
+        "sheetlab.csv.quoteChar": {
+          "type": "string",
+          "default": "\"",
+          "description": "Quote character used when parsing/writing CSV."
+        },
+        "sheetlab.csv.hasHeaderRow": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "true",
+            "false"
+          ],
+          "default": "auto",
+          "description": "Whether the first row of a CSV/TSV should be treated as a header row."
+        },
+        "sheetlab.grid.theme": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "dark",
+            "light",
+            "high-contrast"
+          ],
+          "default": "auto",
+          "description": "Grid color theme. 'auto' follows the active VS Code theme."
+        },
+        "sheetlab.grid.fontSize": {
+          "type": "number",
+          "default": 13,
+          "description": "Grid font size in pixels."
+        },
+        "sheetlab.grid.rowHeight": {
+          "type": "number",
+          "default": 24,
+          "description": "Default row height in pixels."
+        },
+        "sheetlab.grid.defaultColumnWidth": {
+          "type": "number",
+          "default": 100,
+          "description": "Default column width in pixels."
+        },
+        "sheetlab.grid.showGridlines": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show gridlines in the spreadsheet grid."
+        },
+        "sheetlab.grid.autoFitColumns": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-fit column widths to content when a sheet is opened."
+        },
+        "sheetlab.formula.enableCalculation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Evaluate formulas using the built-in formula engine. When disabled, formula text is shown as-is."
+        },
+        "sheetlab.performance.maxRowsInMemory": {
+          "type": "number",
+          "default": 500000,
+          "description": "Hard cap on rows loaded into a single sheet view. Files larger than this are truncated with a warning."
+        },
+        "sheetlab.performance.chunkSize": {
+          "type": "number",
+          "default": 5000,
+          "description": "Number of rows parsed/streamed per chunk during load."
+        },
+        "sheetlab.query.maxResultRows": {
+          "type": "number",
+          "default": 100000,
+          "description": "Maximum number of rows returned by a single query."
+        },
+        "sheetlab.telemetry.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt-in anonymous usage telemetry. SheetLab never sends workbook or CSV contents anywhere, regardless of this setting."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "sheetlab.searchWorkbook",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.goToCell",
+        "key": "ctrl+g",
+        "mac": "cmd+g",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.saveSpreadsheet",
+        "key": "ctrl+s",
+        "mac": "cmd+s",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "compile": "tsc -p . --noEmit",
+    "lint": "eslint src webview/src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\" \"webview/src/**/*.ts\"",
+    "test": "node ./dist/tests/runTest.js",
+    "test:unit": "mocha -r ts-node/register tests/unit/**/*.test.ts",
+    "test:perf": "ts-node tests/performance/run.ts",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "exceljs": "^3.4.0",
+    "hyperformula": "^2.7.1",
+    "papaparse": "^5.4.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.0",
+    "@types/papaparse": "^5.3.14",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^8.57.0",
+    "mocha": "^11.3.0",
+    "prettier": "^3.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}
