@@ -1,6 +1,6 @@
 import { postToHost } from '../app/vscodeApi';
 import { appState } from '../state/appState';
-import { CleanupOperation } from '../../../src/types/workbook';
+import { CleanupOperation, CellRange } from '../../../src/types/workbook';
 
 export class DataCleaningPanel {
   private container: HTMLElement;
@@ -88,7 +88,7 @@ export class DataCleaningPanel {
     const splitBtn = document.createElement('button');
     splitBtn.className = 'sheetlab-btn-secondary';
     splitBtn.textContent = 'Split Column';
-    splitBtn.addEventListener('click', () => this.apply({ kind: 'splitColumn', delimiter: splitDelim.value }));
+    splitBtn.addEventListener('click', () => this.applyToLiteralSelection({ kind: 'splitColumn', delimiter: splitDelim.value }));
     splitRow.append(splitDelim, splitBtn);
     this.container.appendChild(splitRow);
 
@@ -103,7 +103,7 @@ export class DataCleaningPanel {
     mergeBtn.addEventListener('click', () => {
       const r = appState.selection.range;
       const cols = Array.from({ length: r.endCol - r.startCol + 1 }, (_, i) => r.startCol + i);
-      this.apply({ kind: 'mergeColumns', cols, separator: mergeSep.value });
+      this.applyToLiteralSelection({ kind: 'mergeColumns', cols, separator: mergeSep.value });
     });
     mergeRow.append(mergeSep, mergeBtn);
     this.container.appendChild(mergeRow);
@@ -113,8 +113,45 @@ export class DataCleaningPanel {
     postToHost({
       type: 'cleanData',
       sheetName: appState.activeSheet,
+      range: this.effectiveRange(),
+      operation,
+    });
+  }
+
+  /**
+   * Split/Merge Column need the LITERAL selected column range (that's how
+   * the user tells us which columns to split/merge) -- unlike the other
+   * cleanup operations, these must never get the single-cell-to-whole-sheet
+   * expansion below, or the column bounds would stop matching what the
+   * user actually selected.
+   */
+  private applyToLiteralSelection(operation: CleanupOperation): void {
+    postToHost({
+      type: 'cleanData',
+      sheetName: appState.activeSheet,
       range: appState.selection.range,
       operation,
     });
+  }
+
+  /**
+   * Clean Data operations (remove duplicates, trim, fill down, ...) almost
+   * always mean "the whole sheet" in practice -- a lone single-cell
+   * selection is far more likely to be "the user hasn't deliberately
+   * picked a sub-range" than "clean exactly this one cell." Defaulting to
+   * the sheet's full used range in that case matches intent much better
+   * than silently operating on a 1x1 selection and looking like nothing
+   * happened. A genuine multi-cell selection is always respected as-is.
+   */
+  private effectiveRange(): CellRange {
+    const r = appState.selection.range;
+    const isSingleCell = r.startRow === r.endRow && r.startCol === r.endCol;
+    if (!isSingleCell) return r;
+    return {
+      startRow: 0,
+      startCol: 0,
+      endRow: Math.max(0, appState.currentRowCount() - 1),
+      endCol: Math.max(0, appState.currentColCount() - 1),
+    };
   }
 }

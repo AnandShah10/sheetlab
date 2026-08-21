@@ -57,6 +57,10 @@ new Toolbar(toolbarEl, {
   onOpenQuery: () => queryPanel.toggle(),
   onOpenCleanData: () => cleanPanel.toggle(),
   onToggleFilter: () => filterPopup.toggle(),
+  onActionApplied: () => {
+    const { row, col } = appState.selection.active;
+    grid.scrollToCell(row, col);
+  },
   onSort: (direction) => {
     const range = fullColumnRangeFromSelection();
     postToHost({
@@ -101,6 +105,17 @@ grid.setSelectionHandlers(
   },
 );
 
+sheetTabs.setOnSwitch(() => grid.reset());
+
+// Escape closes any open floating panel (search/query/clean-data/filter) --
+// previously the only way to close one was the small "X" button.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  for (const panel of [searchPanel, queryPanel, cleanPanel, filterPopup]) {
+    panel.close();
+  }
+});
+
 onHostMessage((msg) => {
   switch (msg.type) {
     case 'init': {
@@ -110,7 +125,7 @@ onHostMessage((msg) => {
       break;
     }
     case 'sheetData': {
-      appState.mergeSheetRows(msg.sheetName, msg.rows);
+      appState.mergeSheetRows(msg.sheetName, msg.rows, msg.rowRangeStart, msg.rowRangeEnd);
       break;
     }
     case 'applyEdit': {
@@ -151,6 +166,11 @@ onHostMessage((msg) => {
         tables: msg.tables,
         freezePane: msg.freezePane,
       });
+      break;
+    }
+    case 'sheetOrderChanged': {
+      appState.applySheetOrderChange(msg.sheetOrder, msg.activeSheet, msg.activeSheetSummary);
+      grid.reset();
       break;
     }
     case 'uiCommand': {

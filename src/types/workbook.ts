@@ -161,6 +161,19 @@ export type HostToWebviewMessage =
       tables: ExcelTableMeta[];
       freezePane?: FreezePane;
     }
+  | {
+      type: 'sheetOrderChanged';
+      sheetOrder: string[];
+      activeSheet: string;
+      activeSheetSummary: {
+        rowCount: number;
+        colCount: number;
+        columns: Record<number, ColumnMeta>;
+        rowMeta: Record<number, RowMeta>;
+        tables: ExcelTableMeta[];
+        freezePane?: FreezePane;
+      };
+    }
   | { type: 'uiCommand'; command: UiCommand }
   | { type: 'error'; message: string; detail?: string };
 
@@ -191,7 +204,7 @@ export type WebviewToHostMessage =
   | { type: 'redo' }
   | { type: 'save' }
   | { type: 'switchSheet'; sheetName: string }
-  | { type: 'createSheet'; name: string }
+  | { type: 'createSheet'; name: string; data?: string[][] }
   | { type: 'renameSheet'; oldName: string; newName: string }
   | { type: 'deleteSheet'; name: string }
   | { type: 'resizeColumn'; sheetName: string; col: number; width: number }

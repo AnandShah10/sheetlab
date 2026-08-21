@@ -285,20 +285,37 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       }
 
       case 'createSheet': {
-        createWorksheet(doc.workbook, msg.name);
+        const created = createWorksheet(doc.workbook, msg.name);
+        // Populate initial data (e.g. a query result) in the SAME
+        // synchronous handler execution as sheet creation, rather than
+        // relying on the caller to send a separate 'pasteRange' message
+        // afterward -- two independent fire-and-forget postMessage calls
+        // give no hard guarantee the sheet exists yet by the time the
+        // second one is processed, which was a real (if narrow) race.
+        if (msg.data) pasteRange(created, 0, 0, msg.data);
+        doc.activeSheet = msg.name; // jump to the newly created sheet, matching Excel's own behavior
         this.markDirty(doc);
+        this.broadcastSheetOrderChange(doc, post);
+        this.resyncSheet(doc, doc.activeSheet, post);
         return;
       }
 
       case 'renameSheet': {
         renameWorksheet(doc.workbook, msg.oldName, msg.newName);
+        if (doc.activeSheet === msg.oldName) doc.activeSheet = msg.newName;
         this.markDirty(doc);
+        this.broadcastSheetOrderChange(doc, post);
         return;
       }
 
       case 'deleteSheet': {
         deleteWorksheet(doc.workbook, msg.name);
+        if (doc.activeSheet === msg.name) {
+          doc.activeSheet = doc.workbook.meta.sheetOrder[0];
+          this.resyncSheet(doc, doc.activeSheet, post);
+        }
         this.markDirty(doc);
+        this.broadcastSheetOrderChange(doc, post);
         return;
       }
 
@@ -469,6 +486,33 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       rowMeta: sheet.rowMeta,
       tables: sheet.tables ?? [],
       freezePane: sheet.freezePane,
+    });
+  }
+
+  /**
+   * Notifies the webview after any operation that changes the SET of
+   * sheets (create/rename/delete) or which sheet is active as a result.
+   * Without this, the webview's own `appState.sheetOrder`/`activeSheet`
+   * never learn about the change -- they were only ever set once at
+   * 'init' time -- so newly created sheets never appear as tabs, renamed
+   * tabs keep showing the old name, and switching which sheet is "active"
+   * after a delete silently leaves the grid pointed at a sheet name that
+   * no longer exists.
+   */
+  private broadcastSheetOrderChange(doc: ExcelDocument, post: (m: HostToWebviewMessage) => void): void {
+    const sheet = getSheet(doc.workbook, doc.activeSheet);
+    post({
+      type: 'sheetOrderChanged',
+      sheetOrder: doc.workbook.meta.sheetOrder,
+      activeSheet: doc.activeSheet,
+      activeSheetSummary: {
+        rowCount: sheet.rowCount,
+        colCount: sheet.colCount,
+        columns: sheet.columns,
+        rowMeta: sheet.rowMeta,
+        tables: sheet.tables ?? [],
+        freezePane: sheet.freezePane,
+      },
     });
   }
 

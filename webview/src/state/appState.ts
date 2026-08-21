@@ -67,14 +67,59 @@ export class AppState {
     this.notify();
   }
 
-  mergeSheetRows(sheetName: string, rows: Record<number, RowData>): void {
+  /**
+   * Replaces cached rows within [rangeStart, rangeEnd) with `rows` (a full,
+   * authoritative snapshot of that range from the host), rather than a
+   * naive merge. This matters because a sparse row map omits blank rows
+   * entirely -- after a structural change (insert/delete row, sort, clean,
+   * paste) shifts content around, a row that's now blank simply won't be a
+   * key in `rows`. A plain `{...existing, ...rows}` merge would leave that
+   * row's STALE pre-change content sitting in the cache forever, which
+   * shows up as ghost/duplicated content (e.g. inserting a row appearing to
+   * "duplicate" the row below it, because the old position never got
+   * cleared). Clearing the covered range first, then applying the fresh
+   * data on top, is correct for both this resync case and the plain
+   * incremental-scroll-chunk case (clearing an as-yet-unloaded range is a
+   * harmless no-op there).
+   */
+  mergeSheetRows(sheetName: string, rows: Record<number, RowData>, rangeStart: number, rangeEnd: number): void {
     const existing = this.rowsBySheet[sheetName] ?? {};
-    this.rowsBySheet[sheetName] = { ...existing, ...rows };
+    const next: Record<number, RowData> = {};
+    for (const [key, row] of Object.entries(existing)) {
+      const idx = Number(key);
+      if (idx < rangeStart || idx >= rangeEnd) next[idx] = row;
+    }
+    Object.assign(next, rows);
+    this.rowsBySheet[sheetName] = next;
     this.notify();
   }
 
   replaceSheetRows(sheetName: string, rows: Record<number, RowData>): void {
     this.rowsBySheet[sheetName] = rows;
+    this.notify();
+  }
+
+  /**
+   * Applies a create/rename/delete sheet-list change from the host,
+   * including switching the active sheet when the host says it changed
+   * (e.g. jumping to a newly created sheet, or falling back to another
+   * sheet after the active one was deleted). Resets selection to A1 and
+   * clears any stale per-sheet visible-row filter reference so the grid
+   * doesn't carry over state from a different sheet.
+   */
+  applySheetOrderChange(sheetOrder: string[], activeSheet: string, activeSheetSummary?: SerializedWorkbookInit['sheetSummaries'][string]): void {
+    this.sheetOrder = sheetOrder;
+    if (activeSheetSummary) {
+      this.sheetSummaries[activeSheet] = activeSheetSummary;
+    }
+    if (activeSheet !== this.activeSheet) {
+      this.activeSheet = activeSheet;
+      this.selection = {
+        active: { row: 0, col: 0 },
+        range: { startRow: 0, startCol: 0, endRow: 0, endCol: 0 },
+        editing: false,
+      };
+    }
     this.notify();
   }
 

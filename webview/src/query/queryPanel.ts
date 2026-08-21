@@ -70,6 +70,14 @@ export class QueryPanel {
     actions.className = 'sheetlab-query-actions';
     const copyBtn = this.actionButton('Copy Result', () => this.copyResult());
     const newSheetBtn = this.actionButton('New Worksheet From Result', () => this.exportToNewSheet());
+    if (appState.meta?.sourceKind === 'csv' || appState.meta?.sourceKind === 'tsv') {
+      // CSV/TSV is fundamentally single-sheet -- there's nowhere for a new
+      // worksheet to live, so disable this rather than silently doing
+      // nothing when clicked (the host has no 'createSheet' handler for
+      // the CSV editor at all).
+      newSheetBtn.disabled = true;
+      newSheetBtn.title = 'Not available for CSV/TSV -- export the result to a new file instead (Copy Result, then paste into a new CSV).';
+    }
     actions.appendChild(copyBtn);
     actions.appendChild(newSheetBtn);
 
@@ -162,12 +170,9 @@ export class QueryPanel {
     if (!this.lastResult) return;
     const name = prompt('New worksheet name for query result:', 'Query Result');
     if (!name) return;
-    postToHost({ type: 'createSheet', name });
     postToHost({
-      type: 'pasteRange',
-      sheetName: name,
-      startRow: 0,
-      startCol: 0,
+      type: 'createSheet',
+      name,
       data: [this.lastResult.columns, ...this.lastResult.rows.map((r) => r.map((v) => (v === null ? '' : String(v))))],
     });
   }

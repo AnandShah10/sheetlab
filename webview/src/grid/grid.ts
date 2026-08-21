@@ -31,6 +31,7 @@ export class Grid {
   private onCellSelect: ((row: number, col: number) => void) | undefined;
   private onRangeChange: ((range: CellRange) => void) | undefined;
   private dragging = false;
+  private keyboardExtendTo: { row: number; col: number } | null = null;
   private contextMenu = new GridContextMenu();
 
   constructor(container: HTMLElement) {
@@ -351,8 +352,21 @@ export class Grid {
     });
   }
 
+  /** Ctrl+B / Ctrl+I / Ctrl+U keyboard shortcuts -- toggles based on the active cell's current state, applied to the whole selection (mirrors the toolbar's B/I/U buttons). */
+  private toggleFormatOnSelection(key: 'bold' | 'italic' | 'underline'): void {
+    const { row, col } = appState.selection.active;
+    const current = appState.getCell(appState.activeSheet, row, col).format?.[key];
+    postToHost({
+      type: 'formatCells',
+      sheetName: appState.activeSheet,
+      range: appState.selection.range,
+      format: { [key]: !current },
+    });
+  }
+
   private selectWholeColumn(col: number): void {
     this.commitEditIfAny();
+    this.keyboardExtendTo = null;
     const lastRow = Math.max(0, appState.currentRowCount() - 1);
     appState.selection = {
       active: { row: 0, col },
@@ -366,6 +380,7 @@ export class Grid {
 
   private selectWholeRow(row: number): void {
     this.commitEditIfAny();
+    this.keyboardExtendTo = null;
     const lastCol = Math.max(0, appState.currentColCount() - 1);
     appState.selection = {
       active: { row, col: 0 },
@@ -680,6 +695,7 @@ export class Grid {
   private onCellMouseDown(e: MouseEvent, row: number, col: number): void {
     this.commitEditIfAny();
     this.dragging = true;
+    this.keyboardExtendTo = null;
     appState.selection = { active: { row, col }, range: { startRow: row, startCol: col, endRow: row, endCol: col }, editing: false };
     appState.notify();
     this.onCellSelect?.(row, col);
@@ -770,6 +786,7 @@ export class Grid {
   }
 
   private moveActive(dRow: number, dCol: number): void {
+    this.keyboardExtendTo = null;
     const next = {
       row: Math.max(0, appState.selection.active.row + dRow),
       col: Math.max(0, appState.selection.active.col + dCol),
@@ -784,22 +801,63 @@ export class Grid {
     if (this.editingInput) return;
     if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
 
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod) {
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        postToHost({ type: 'undo' });
+        return;
+      }
+      if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        postToHost({ type: 'redo' });
+        return;
+      }
+      if (key === 'b') {
+        e.preventDefault();
+        this.toggleFormatOnSelection('bold');
+        return;
+      }
+      if (key === 'i') {
+        e.preventDefault();
+        this.toggleFormatOnSelection('italic');
+        return;
+      }
+      if (key === 'u') {
+        e.preventDefault();
+        this.toggleFormatOnSelection('underline');
+        return;
+      }
+    }
+
     const { row, col } = appState.selection.active;
     const withShift = e.shiftKey;
 
     const extendOrMove = (dRow: number, dCol: number) => {
       e.preventDefault();
       if (withShift) {
-        const r = appState.selection.range;
+        // Extend from the FIXED anchor (active cell) to a cursor that moves
+        // incrementally with each arrow press, recomputed fresh each time
+        // -- not accumulated against the previous range's min/max. The old
+        // version computed `Math.min(r.startRow, row + dRow, row)` against
+        // the anchor every time, which can only ever grow toward one fixed
+        // point and then gets stuck: pressing the same arrow key twice
+        // produced the identical `row + dRow` both times, capping any
+        // selection at exactly 2 cells in that direction.
+        const from = this.keyboardExtendTo ?? { row, col };
+        const to = { row: from.row + dRow, col: from.col + dCol };
+        this.keyboardExtendTo = to;
         appState.selection.range = {
-          startRow: Math.min(r.startRow, row + dRow, row),
-          endRow: Math.max(r.endRow, row + dRow, row),
-          startCol: Math.min(r.startCol, col + dCol, col),
-          endCol: Math.max(r.endCol, col + dCol, col),
+          startRow: Math.min(row, to.row),
+          endRow: Math.max(row, to.row),
+          startCol: Math.min(col, to.col),
+          endCol: Math.max(col, to.col),
         };
         appState.notify();
         this.onRangeChange?.(appState.selection.range);
       } else {
+        this.keyboardExtendTo = null;
         this.moveActive(dRow, dCol);
       }
     };
@@ -818,6 +876,14 @@ export class Grid {
         return;
       default:
         if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+          // Without this, the physical keystroke's own native
+          // keydown->keypress->input pipeline can continue past this
+          // handler and land on the brand-new <input> we're about to
+          // create and focus (since focus changes mid-event, before that
+          // pipeline finishes) -- typing the character a second time on
+          // top of the one we set programmatically below. This is the
+          // "first letter sometimes gets typed twice" bug.
+          e.preventDefault();
           this.beginEdit(row, col, e.key);
         }
     }

@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -67,79 +67,20 @@
       }
     ],
     "commands": [
-      {
-        "command": "sheetlab.openCsvAsSpreadsheet",
-        "title": "Open as Spreadsheet",
-        "category": "SheetLab",
-        "icon": "$(table)"
-      },
-      {
-        "command": "sheetlab.openAsText",
-        "title": "Open as Text",
-        "category": "SheetLab",
-        "icon": "$(file-text)"
-      },
-      {
-        "command": "sheetlab.refreshSpreadsheet",
-        "title": "Refresh Spreadsheet",
-        "category": "SheetLab",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "sheetlab.saveSpreadsheet",
-        "title": "Save Spreadsheet",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.exportAsXlsx",
-        "title": "Export as XLSX",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.exportAsCsv",
-        "title": "Export as CSV",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.runQuery",
-        "title": "Run Query",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.searchWorkbook",
-        "title": "Search Workbook",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.cleanData",
-        "title": "Clean Data",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.newWorksheet",
-        "title": "New Worksheet",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.goToCell",
-        "title": "Go To Cell",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.toggleFormulaBar",
-        "title": "Toggle Formula Bar",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.toggleGridlines",
-        "title": "Toggle Gridlines",
-        "category": "SheetLab"
-      },
-      {
-        "command": "sheetlab.freezePanes",
-        "title": "Freeze Panes at Selection",
-        "category": "SheetLab"
-      }
+      { "command": "sheetlab.openCsvAsSpreadsheet", "title": "Open as Spreadsheet", "category": "SheetLab", "icon": "$(table)" },
+      { "command": "sheetlab.openAsText", "title": "Open as Text", "category": "SheetLab", "icon": "$(file-text)" },
+      { "command": "sheetlab.refreshSpreadsheet", "title": "Refresh Spreadsheet", "category": "SheetLab", "icon": "$(refresh)" },
+      { "command": "sheetlab.saveSpreadsheet", "title": "Save Spreadsheet", "category": "SheetLab", "icon": "$(save)" },
+      { "command": "sheetlab.exportAsXlsx", "title": "Export as XLSX", "category": "SheetLab", "icon": "$(desktop-download)" },
+      { "command": "sheetlab.exportAsCsv", "title": "Export as CSV", "category": "SheetLab", "icon": "$(desktop-download)" },
+      { "command": "sheetlab.runQuery", "title": "Run Query", "category": "SheetLab", "icon": "$(database)" },
+      { "command": "sheetlab.searchWorkbook", "title": "Search Workbook", "category": "SheetLab", "icon": "$(search)" },
+      { "command": "sheetlab.cleanData", "title": "Clean Data", "category": "SheetLab", "icon": "$(sparkle)" },
+      { "command": "sheetlab.newWorksheet", "title": "New Worksheet", "category": "SheetLab", "icon": "$(add)" },
+      { "command": "sheetlab.goToCell", "title": "Go To Cell", "category": "SheetLab", "icon": "$(target)" },
+      { "command": "sheetlab.toggleFormulaBar", "title": "Toggle Formula Bar", "category": "SheetLab" },
+      { "command": "sheetlab.toggleGridlines", "title": "Toggle Gridlines", "category": "SheetLab" },
+      { "command": "sheetlab.freezePanes", "title": "Freeze Panes at Selection", "category": "SheetLab" }
     ],
     "menus": {
       "editor/title": [
@@ -152,16 +93,6 @@
           "command": "sheetlab.openAsText",
           "when": "activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
           "group": "navigation@1"
-        },
-        {
-          "command": "sheetlab.saveSpreadsheet",
-          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
-          "group": "navigation@2"
-        },
-        {
-          "command": "sheetlab.runQuery",
-          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
-          "group": "navigation@3"
         }
       ],
       "explorer/context": [
@@ -172,10 +103,7 @@
         }
       ],
       "commandPalette": [
-        {
-          "command": "sheetlab.openAsText",
-          "when": "false"
-        }
+        { "command": "sheetlab.openAsText", "when": "false" }
       ]
     },
     "configuration": {
@@ -183,23 +111,13 @@
       "properties": {
         "sheetlab.csv.delimiter": {
           "type": "string",
-          "enum": [
-            "auto",
-            ",",
-            ";",
-            "\t",
-            "|"
-          ],
+          "enum": ["auto", ",", ";", "\t", "|"],
           "default": "auto",
           "description": "Delimiter used when opening a CSV/TSV as a spreadsheet."
         },
         "sheetlab.csv.encoding": {
           "type": "string",
-          "enum": [
-            "utf8",
-            "utf8bom",
-            "latin1"
-          ],
+          "enum": ["utf8", "utf8bom", "latin1"],
           "default": "utf8",
           "description": "Text encoding used to read/write CSV/TSV files."
         },
@@ -210,22 +128,13 @@
         },
         "sheetlab.csv.hasHeaderRow": {
           "type": "string",
-          "enum": [
-            "auto",
-            "true",
-            "false"
-          ],
+          "enum": ["auto", "true", "false"],
           "default": "auto",
           "description": "Whether the first row of a CSV/TSV should be treated as a header row."
         },
         "sheetlab.grid.theme": {
           "type": "string",
-          "enum": [
-            "auto",
-            "dark",
-            "light",
-            "high-contrast"
-          ],
+          "enum": ["auto", "dark", "light", "high-contrast"],
           "default": "auto",
           "description": "Grid color theme. 'auto' follows the active VS Code theme."
         },
@@ -298,6 +207,36 @@
         "command": "sheetlab.saveSpreadsheet",
         "key": "ctrl+s",
         "mac": "cmd+s",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.runQuery",
+        "key": "ctrl+shift+q",
+        "mac": "cmd+shift+q",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.cleanData",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.newWorksheet",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n",
+        "when": "activeCustomEditorId == sheetlab.excelEditor"
+      },
+      {
+        "command": "sheetlab.toggleFormulaBar",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.freezePanes",
+        "key": "alt+f",
+        "mac": "alt+f",
         "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
       }
     ]

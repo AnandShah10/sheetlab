@@ -18,9 +18,7 @@ export class SheetTabs {
 
   render(): void {
     this.container.innerHTML = '';
-    if (appState.sheetOrder.length <= 1 && appState.meta?.sourceKind !== 'xlsx' && appState.meta?.sourceKind !== 'xlsm') {
-      // Single-sheet CSV: still show one tab for consistency, but hide add/manage affordances.
-    }
+    const isExcel = appState.meta?.sourceKind === 'xlsx' || appState.meta?.sourceKind === 'xlsm' || appState.meta?.sourceKind === 'xls';
 
     for (const name of appState.sheetOrder) {
       const tab = document.createElement('button');
@@ -31,18 +29,30 @@ export class SheetTabs {
       if (name === appState.activeSheet) tab.classList.add('sheetlab-sheet-tab-active');
       tab.addEventListener('click', () => {
         if (name === appState.activeSheet) return;
+        appState.activeSheet = name;
+        appState.selection = {
+          active: { row: 0, col: 0 },
+          range: { startRow: 0, startCol: 0, endRow: 0, endCol: 0 },
+          editing: false,
+        };
+        appState.notify();
         postToHost({ type: 'switchSheet', sheetName: name });
         this.onSwitch?.(name);
       });
-      tab.addEventListener('dblclick', () => this.renameTab(name));
-      tab.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        this.showContextMenu(e, name);
-      });
+      if (isExcel) {
+        // Rename/delete only apply to Excel workbooks -- CSV/TSV is
+        // fundamentally single-sheet, and the CSV editor provider has no
+        // 'renameSheet'/'deleteSheet' handler at all, so wiring these for
+        // CSV's one tab would silently do nothing when clicked.
+        tab.addEventListener('dblclick', () => this.renameTab(name));
+        tab.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          this.showContextMenu(e, name);
+        });
+      }
       this.container.appendChild(tab);
     }
 
-    const isExcel = appState.meta?.sourceKind === 'xlsx' || appState.meta?.sourceKind === 'xlsm' || appState.meta?.sourceKind === 'xls';
     if (isExcel) {
       const addBtn = document.createElement('button');
       addBtn.className = 'sheetlab-sheet-tab-add';

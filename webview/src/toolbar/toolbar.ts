@@ -1,6 +1,7 @@
 import { appState } from '../state/appState';
 import { postToHost } from '../app/vscodeApi';
 import { CellFormat } from '../../../src/types/workbook';
+import { createIcon, hasIcon } from './icons';
 
 export interface ToolbarCallbacks {
   onOpenSearch: () => void;
@@ -9,6 +10,8 @@ export interface ToolbarCallbacks {
   onSort: (direction: 'asc' | 'desc') => void;
   onToggleFilter: () => void;
   onFreezePanes: () => void;
+  /** Called after any format/action is applied, so the caller can scroll the affected cell into view -- important since the active cell is very often scrolled off-screen when a toolbar button is clicked. */
+  onActionApplied?: () => void;
 }
 
 export class Toolbar {
@@ -75,7 +78,16 @@ export class Toolbar {
   private button(label: string, iconClass: string, onClick: () => void): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = `sheetlab-toolbar-btn sheetlab-icon-${iconClass}`;
-    btn.textContent = label;
+    btn.title = label;
+    if (hasIcon(iconClass)) {
+      btn.appendChild(createIcon(iconClass));
+      const text = document.createElement('span');
+      text.textContent = label;
+      text.className = 'sheetlab-btn-label';
+      btn.appendChild(text);
+    } else {
+      btn.textContent = label; // e.g. B/I/U -- text label is the icon convention here
+    }
     btn.addEventListener('click', onClick);
     return btn;
   }
@@ -94,6 +106,12 @@ export class Toolbar {
 
   private applyFormat(format: Partial<CellFormat>): void {
     postToHost({ type: 'formatCells', sheetName: appState.activeSheet, range: appState.selection.range, format });
+    // The active cell is very often scrolled off-screen when a toolbar
+    // button is clicked (e.g. after scrolling far right/down to find a
+    // cell to format) -- without this, the format silently applies to a
+    // cell the user can't currently see, which looks exactly like "the
+    // button doesn't do anything."
+    this.callbacks.onActionApplied?.();
   }
 
   private colorInput(title: string, onChange: (hex: string) => void): HTMLInputElement {
@@ -101,7 +119,17 @@ export class Toolbar {
     input.type = 'color';
     input.title = title;
     input.className = 'sheetlab-toolbar-color-input';
-    input.addEventListener('change', () => onChange(input.value));
+    let lastApplied: string | null = null;
+    const apply = () => {
+      if (input.value === lastApplied) return; // color inputs can fire input+change for the same value; avoid double-posting
+      lastApplied = input.value;
+      onChange(input.value);
+    };
+    // Both events are listened for because native color-picker widgets
+    // vary in which one fires reliably across platforms; `apply()`
+    // de-duplicates so this never double-applies.
+    input.addEventListener('input', apply);
+    input.addEventListener('change', apply);
     return input;
   }
 

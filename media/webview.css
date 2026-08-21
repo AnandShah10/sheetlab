@@ -48,6 +48,17 @@ body {
   cursor: pointer;
   font-size: 12px;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sheetlab-btn-icon {
+  flex-shrink: 0;
+}
+
+.sheetlab-btn-label {
+  line-height: 1;
 }
 
 .sheetlab-toolbar-btn:hover:not(:disabled) {
@@ -262,6 +273,12 @@ body {
   font-size: 12px;
   font-family: var(--vscode-editor-font-family, monospace);
   cursor: cell;
+  /* Without this, dragging across cells to select a range fights with the
+     browser's native text-selection (which grabs cell TEXT instead of
+     extending our own range-selection state), making multi-cell drag
+     feel broken after the first cell or two. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .sheetlab-cell.sheetlab-gridlines {
