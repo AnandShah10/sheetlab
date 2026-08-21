@@ -2,12 +2,13 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
     "url": "https://github.com/AnandShah10/sheetlab"
   },
+  "icon": "media/icon.png",
   "bugs": {
     "url": "https://github.com/AnandShah10/sheetlab/issues"
   },
