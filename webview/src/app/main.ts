@@ -86,18 +86,8 @@ new Toolbar(toolbarEl, {
     });
   },
   onExport: () => {
-    const formats = ['xlsx', 'xlsm', 'xls', 'ods', 'csv', 'tsv'] as const;
-    const choice = prompt(
-      'Export format (xlsx, xlsm, xls, ods, csv, tsv):',
-      'xlsx',
-    );
-    if (!choice) return;
-    const format = choice.trim().toLowerCase();
-    if (!(formats as readonly string[]).includes(format)) {
-      alert(`Unsupported format "${choice}". Use one of: ${formats.join(', ')}`);
-      return;
-    }
-    postToHost({ type: 'exportWorkbook', format: format as (typeof formats)[number] });
+    // Host shows VS Code QuickPick — webview prompt() is blocked by sandbox.
+    postToHost({ type: 'requestExport' });
   },
 });
 
@@ -139,6 +129,19 @@ document.addEventListener('keydown', (e) => {
 
 onHostMessage((msg) => {
   switch (msg.type) {
+    case 'navigateToRef': {
+      const range = parseA1OrRange(msg.ref);
+      if (range) {
+        appState.selection = {
+          active: { row: range.startRow, col: range.startCol },
+          range,
+          editing: false,
+        };
+        appState.notify();
+        grid.scrollToCell(range.startRow, range.startCol);
+      }
+      break;
+    }
     case 'init': {
       appState.initFromHost(msg.workbook, msg.settings);
       sheetTabs.render();
@@ -214,20 +217,14 @@ function handleUiCommand(command: string): void {
     case 'openQuery': queryPanel.open(); break;
     case 'openCleanData': cleanPanel.open(); break;
     case 'openGoToCell': {
-      const ref = prompt('Go to cell (e.g. B12 or A1:C10):');
-      if (ref) {
-        const parsed = parseA1OrRange(ref);
-        if (parsed) {
-          appState.selection = { active: { row: parsed.startRow, col: parsed.startCol }, range: parsed, editing: false };
-          appState.notify();
-          grid.scrollToCell(parsed.startRow, parsed.startCol);
-        }
-      }
+      postToHost({ type: 'promptGoToCell' });
       break;
     }
     case 'openNewWorksheetPrompt': {
-      const name = prompt('New worksheet name:');
-      if (name) postToHost({ type: 'createSheet', name });
+      postToHost({
+        type: 'promptCreateSheet',
+        defaultName: `Sheet${appState.sheetOrder.length + 1}`,
+      });
       break;
     }
     case 'toggleFormulaBar':
@@ -246,11 +243,7 @@ function handleUiCommand(command: string): void {
       });
       break;
     case 'openExport': {
-      const formats = ['xlsx', 'xlsm', 'xls', 'ods', 'csv', 'tsv'];
-      const choice = prompt('Export format (xlsx, xlsm, xls, ods, csv, tsv):', 'xlsx');
-      if (choice && formats.includes(choice.trim().toLowerCase())) {
-        postToHost({ type: 'exportWorkbook', format: choice.trim().toLowerCase() as any });
-      }
+      postToHost({ type: 'requestExport' });
       break;
     }
     case 'freezePanesAtSelection':

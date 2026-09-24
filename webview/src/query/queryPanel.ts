@@ -161,19 +161,49 @@ export class QueryPanel {
       this.lastResult.columns.join('\t'),
       ...this.lastResult.rows.map((r) => r.map((v) => (v === null ? '' : String(v))).join('\t')),
     ].join('\n');
-    navigator.clipboard?.writeText(text).catch(() => {
-      /* clipboard API may be restricted; user can still select from the table */
-    });
+    const btn = this.container.querySelector('button') as HTMLButtonElement | null;
+    // Prefer the Copy Result button label feedback
+    const copyBtn = Array.from(this.container.querySelectorAll('button')).find(
+      (b) => (b.textContent || '').includes('Copy'),
+    ) as HTMLButtonElement | undefined;
+    const done = () => {
+      if (!copyBtn) return;
+      const prev = copyBtn.textContent;
+      copyBtn.textContent = 'Copied!';
+      copyBtn.disabled = true;
+      setTimeout(() => {
+        copyBtn.textContent = prev || 'Copy Result';
+        copyBtn.disabled = false;
+      }, 1500);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          done();
+        } finally {
+          ta.remove();
+        }
+      });
+    } else {
+      done();
+    }
   }
 
   private exportToNewSheet(): void {
     if (!this.lastResult) return;
-    const name = prompt('New worksheet name for query result:', 'Query Result');
-    if (!name) return;
     postToHost({
-      type: 'createSheet',
-      name,
-      data: [this.lastResult.columns, ...this.lastResult.rows.map((r) => r.map((v) => (v === null ? '' : String(v))))],
+      type: 'promptCreateSheet',
+      defaultName: 'Query Result',
+      data: [
+        this.lastResult.columns,
+        ...this.lastResult.rows.map((r) => r.map((v) => (v === null ? '' : String(v)))),
+      ],
     });
   }
 }

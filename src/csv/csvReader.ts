@@ -45,7 +45,11 @@ export function parseCsv(buffer: Buffer, filenameExt: string, options: CsvParseO
     dynamicTyping: false, // we do our own, format-aware typing below
   });
 
-  const allRows = parsed.data;
+  // PapaParse with skipEmptyLines:false keeps a final empty row when the file
+  // ends with a trailing newline. That is a CSV convention, not real data —
+  // strip only pure-trailing empty records so rowCount / truncation match
+  // the logical line count (and round-trips stay clean).
+  const allRows = trimTrailingEmptyRows(parsed.data);
   const hasHeaderRow =
     options.hasHeaderRowOverride === 'true'
       ? true
@@ -179,4 +183,18 @@ export function parseCsvStreaming(
       error: (err: Error) => reject(err),
     });
   });
+}
+
+
+function trimTrailingEmptyRows(rows: string[][]): string[][] {
+  const out = rows.slice();
+  while (out.length > 0) {
+    const last = out[out.length - 1];
+    if (last.length === 0 || last.every((c) => c === '' || c == null)) {
+      out.pop();
+      continue;
+    }
+    break;
+  }
+  return out;
 }

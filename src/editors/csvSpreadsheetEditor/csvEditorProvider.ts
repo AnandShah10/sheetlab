@@ -255,6 +255,24 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         return;
       }
 
+      case 'requestExport': {
+        await vscode.commands.executeCommand('sheetlab.exportWorkbook');
+        return;
+      }
+
+      case 'exportWorkbook': {
+        const map: Record<string, string> = {
+          xlsx: 'sheetlab.exportAsXlsx',
+          csv: 'sheetlab.exportAsCsv',
+          tsv: 'sheetlab.exportAsTsv',
+          ods: 'sheetlab.exportAsOds',
+          xls: 'sheetlab.exportAsXls',
+          xlsm: 'sheetlab.exportAsXlsm',
+        };
+        await vscode.commands.executeCommand(map[msg.format] ?? 'sheetlab.exportAsXlsx');
+        return;
+      }
+
       case 'save': {
         await sync.save();
         post({ type: 'saved', dirty: false });

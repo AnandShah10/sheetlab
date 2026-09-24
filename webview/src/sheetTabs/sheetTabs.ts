@@ -19,8 +19,14 @@ export class SheetTabs {
   render(): void {
     this.container.innerHTML = '';
     const kind = appState.meta?.sourceKind;
-    // Excel + ODS support multi-sheet; CSV/TSV can still create extra sheets in-memory (export as xlsx to keep them).
-    const multiSheet = kind === 'xlsx' || kind === 'xlsm' || kind === 'xls' || kind === 'ods' || kind === 'csv' || kind === 'tsv' || !kind;
+    const multiSheet =
+      kind === 'xlsx' ||
+      kind === 'xlsm' ||
+      kind === 'xls' ||
+      kind === 'ods' ||
+      kind === 'csv' ||
+      kind === 'tsv' ||
+      !kind;
 
     for (const name of appState.sheetOrder) {
       const wrap = document.createElement('div');
@@ -46,7 +52,7 @@ export class SheetTabs {
         postToHost({ type: 'switchSheet', sheetName: name });
         this.onSwitch?.(name);
       });
-      tab.addEventListener('dblclick', () => this.renameTab(name));
+      tab.addEventListener('dblclick', () => postToHost({ type: 'promptRenameSheet', oldName: name }));
       tab.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         this.showContextMenu(e.clientX, e.clientY, name);
@@ -77,21 +83,14 @@ export class SheetTabs {
       addBtn.className = 'sheetlab-sheet-tab-add';
       addBtn.textContent = '+';
       addBtn.title = 'New worksheet';
-      addBtn.addEventListener('click', () => this.createSheet());
+      addBtn.addEventListener('click', () => {
+        postToHost({
+          type: 'promptCreateSheet',
+          defaultName: `Sheet${appState.sheetOrder.length + 1}`,
+        });
+      });
       this.container.appendChild(addBtn);
     }
-  }
-
-  private createSheet(): void {
-    const name = prompt('New worksheet name:', `Sheet${appState.sheetOrder.length + 1}`);
-    if (!name) return;
-    postToHost({ type: 'createSheet', name });
-  }
-
-  private renameTab(oldName: string): void {
-    const newName = prompt('Rename worksheet:', oldName);
-    if (!newName || newName === oldName) return;
-    postToHost({ type: 'renameSheet', oldName, newName });
   }
 
   private showContextMenu(x: number, y: number, name: string): void {
@@ -115,20 +114,10 @@ export class SheetTabs {
       menu.appendChild(item);
     };
 
-    addItem('Rename', () => this.renameTab(name));
-    addItem('Duplicate sheet', () => {
-      const newName = prompt('Duplicate as:', `${name} Copy`);
-      if (!newName) return;
-      postToHost({ type: 'createSheet', name: newName });
-      // Host should copy content; for now create empty then paste is a follow-up.
-      // Prefer dedicated duplicate if host supports it via rename/create flow.
-    });
+    addItem('Rename', () => postToHost({ type: 'promptRenameSheet', oldName: name }));
+    addItem('Duplicate sheet', () => postToHost({ type: 'promptDuplicateSheet', name }));
     if (appState.sheetOrder.length > 1) {
-      addItem('Delete', () => {
-        if (confirm(`Delete worksheet "${name}"?`)) {
-          postToHost({ type: 'deleteSheet', name });
-        }
-      });
+      addItem('Delete', () => postToHost({ type: 'promptDeleteSheet', name }));
     }
 
     document.body.appendChild(menu);

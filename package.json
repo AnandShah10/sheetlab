@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -388,10 +388,11 @@
     "compile": "tsc -p . --noEmit",
     "lint": "eslint src webview/src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\" \"webview/src/**/*.ts\"",
-    "test": "node ./dist/tests/runTest.js",
-    "test:unit": "mocha -r ts-node/register tests/unit/**/*.test.ts",
+    "test": "node ./tests/runTest.js",
+    "test:unit": "node ./tests/runTest.js",
     "test:perf": "ts-node tests/performance/run.ts",
-    "package": "vsce package"
+    "package": "vsce package",
+    "test:mocha": "mocha -r ts-node/register \"tests/unit/**/*.test.ts\""
   },
   "dependencies": {
     "exceljs": "^3.4.0",

@@ -4,6 +4,17 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4]
+
+### Fixed
+- Unit tests: CSV reader no longer counts PapaParse trailing-newline empty row toward truncation/round-trip
+- Webview sandbox: replaced all `prompt()`/`confirm()`/`alert()` with VS Code host dialogs (new sheet, rename, delete, export, go-to-cell, create table)
+- Toolbar **Export** now opens the host export QuickPick (`requestExport`)
+- Query **Copy Result** shows temporary "Copied!" feedback
+- Create Table captures selection range before the dialog so focus loss cannot clear it
+- Ctrl+S / custom editor save: only clears dirty state on success; ODS/XLS save via SheetJS
+- `npm test` points at `tests/runTest.js` (unit harness; no missing `dist/tests/runTest.js`)
+
 ## [0.1.3]
 
 ### Added

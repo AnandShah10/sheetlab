@@ -33,7 +33,7 @@ export class GridContextMenu {
       ['—', () => {}],
       tableHere
         ? ['Remove Table', () => postToHost({ type: 'removeTable', sheetName: appState.activeSheet, name: tableHere.name })]
-        : ['Create Table from Selection', () => this.createTable()],
+        : ['Create Table from Selection', () => this.createTable(range)],
     ];
 
     this.render(x, y, items);
@@ -139,24 +139,13 @@ export class GridContextMenu {
     }).catch(() => undefined);
   }
 
-  private createTable(): void {
-    const range = appState.selection.range;
-    const a1 = rangeLabel(range);
-    const name = prompt(
-      `Table name for selection ${a1} (${range.endRow - range.startRow + 1} rows × ${range.endCol - range.startCol + 1} cols):`,
-      `Table${((appState.sheetSummaries[appState.activeSheet]?.tables ?? []).length) + 1}`,
-    );
-    if (!name) return;
-    const hasTotalsRow = confirm(
-      `Selection: ${a1}\n\nDoes the LAST row of this selection contain totals (a totals row), rather than data?\nClick Cancel if every row is data.`,
-    );
+  private createTable(range: { startRow: number; startCol: number; endRow: number; endCol: number }): void {
+    // Capture range at menu open time so focus loss when the host dialog opens
+    // cannot clear the selection before the host creates the table.
     postToHost({
-      type: 'createTable',
+      type: 'promptCreateTable',
       sheetName: appState.activeSheet,
-      range,
-      name,
-      hasHeaderRow: true,
-      hasTotalsRow,
+      range: { ...range },
     });
   }
 }

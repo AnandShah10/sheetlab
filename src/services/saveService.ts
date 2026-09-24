@@ -7,13 +7,6 @@ import { confirmXlsmSaveIfNeeded } from '../excel/xlsmHandler';
  * Writes an Excel workbook back to disk "atomically": we write the new
  * content to a sibling temp file first, then use `vscode.workspace.fs.rename`
  * (with overwrite) to move it over the original in one filesystem operation.
- * We use the `vscode.workspace.fs` API rather than Node's `fs` module
- * specifically so this also works against virtual/remote filesystems (SSH,
- * WSL, virtual workspaces) that VS Code supports but Node's `fs` cannot see.
- * A crash or process kill mid-write leaves either the old file or the fully
- * written new file — never a half-written one. If the write fails, the
- * original file is left untouched and the error is surfaced via a VS Code
- * notification rather than swallowed.
  */
 export async function saveExcelWorkbook(workbook: Workbook, targetUri: vscode.Uri): Promise<boolean> {
   const proceed = await confirmXlsmSaveIfNeeded(workbook);
@@ -21,7 +14,7 @@ export async function saveExcelWorkbook(workbook: Workbook, targetUri: vscode.Ur
 
   let buffer: Buffer;
   try {
-    buffer = await writeXlsxWorkbook(workbook);
+    buffer = await buildSaveBuffer(workbook, targetUri);
   } catch (err) {
     void vscode.window.showErrorMessage(
       `SheetLab could not build the workbook to save: ${err instanceof Error ? err.message : String(err)}`,
@@ -47,4 +40,52 @@ export async function saveExcelWorkbook(workbook: Workbook, targetUri: vscode.Ur
     }
     return false;
   }
+}
+
+async function buildSaveBuffer(workbook: Workbook, targetUri: vscode.Uri): Promise<Buffer> {
+  const pathLower = targetUri.fsPath.toLowerCase();
+  const kind = workbook.meta.sourceKind;
+
+  // Prefer the destination extension when Save As was used.
+  if (pathLower.endsWith('.ods') || kind === 'ods') {
+    return writeViaSheetJs(workbook, 'ods');
+  }
+  if (pathLower.endsWith('.xls') || kind === 'xls') {
+    return writeViaSheetJs(workbook, 'xls');
+  }
+  if (pathLower.endsWith('.xlsm') || kind === 'xlsm') {
+    // Prefer ExcelJS path which preserves more structure when possible.
+    try {
+      return await writeXlsxWorkbook(workbook);
+    } catch {
+      return writeViaSheetJs(workbook, 'xlsm');
+    }
+  }
+  return writeXlsxWorkbook(workbook);
+}
+
+function writeViaSheetJs(workbook: Workbook, bookType: 'ods' | 'xls' | 'xlsm' | 'xlsx'): Buffer {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const XLSX = require('xlsx') as typeof import('xlsx');
+  const wb = XLSX.utils.book_new();
+  for (const name of workbook.meta.sheetOrder) {
+    const sheet = workbook.sheets[name];
+    if (!sheet) continue;
+    const aoa: (string | number | boolean | null)[][] = [];
+    const maxR = Math.max(0, sheet.rowCount - 1);
+    const maxC = Math.max(0, sheet.colCount - 1);
+    for (let r = 0; r <= maxR; r++) {
+      const line: (string | number | boolean | null)[] = [];
+      for (let c = 0; c <= maxC; c++) {
+        const cell = sheet.rows[r]?.[c];
+        if (!cell || cell.type === 'blank') line.push(null);
+        else if (cell.type === 'formula') line.push(cell.raw);
+        else line.push(cell.value as string | number | boolean | null);
+      }
+      aoa.push(line);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+  }
+  return XLSX.write(wb, { bookType: bookType as import('xlsx').BookType, type: 'buffer' }) as Buffer;
 }

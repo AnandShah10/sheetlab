@@ -504,6 +504,122 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         return;
       }
 
+
+      case 'requestExport': {
+        await vscode.commands.executeCommand('sheetlab.exportWorkbook');
+        return;
+      }
+
+      case 'promptCreateSheet': {
+        const name = await vscode.window.showInputBox({
+          prompt: 'New worksheet name',
+          value: msg.defaultName ?? `Sheet${doc.workbook.meta.sheetOrder.length + 1}`,
+          validateInput: (v) => (!v.trim() ? 'Name is required' : undefined),
+        });
+        if (!name) return;
+        const created = createWorksheet(doc.workbook, name.trim());
+        if (msg.data) pasteRange(created, 0, 0, msg.data);
+        doc.activeSheet = name.trim();
+        this.markDirty(doc);
+        this.broadcastSheetOrderChange(doc, post);
+        this.resyncSheet(doc, doc.activeSheet, post);
+        return;
+      }
+
+      case 'promptRenameSheet': {
+        const newName = await vscode.window.showInputBox({
+          prompt: `Rename worksheet "${msg.oldName}"`,
+          value: msg.oldName,
+          validateInput: (v) => (!v.trim() ? 'Name is required' : undefined),
+        });
+        if (!newName || newName.trim() === msg.oldName) return;
+        renameWorksheet(doc.workbook, msg.oldName, newName.trim());
+        if (doc.activeSheet === msg.oldName) doc.activeSheet = newName.trim();
+        this.markDirty(doc);
+        this.broadcastSheetOrderChange(doc, post);
+        return;
+      }
+
+      case 'promptDeleteSheet': {
+        if (doc.workbook.meta.sheetOrder.length <= 1) {
+          void vscode.window.showWarningMessage('Cannot delete the only worksheet.');
+          return;
+        }
+        const choice = await vscode.window.showWarningMessage(
+          `Delete worksheet "${msg.name}"?`,
+          { modal: true },
+          'Delete',
+        );
+        if (choice !== 'Delete') return;
+        deleteWorksheet(doc.workbook, msg.name);
+        if (doc.activeSheet === msg.name) {
+          doc.activeSheet = doc.workbook.meta.sheetOrder[0];
+          this.resyncSheet(doc, doc.activeSheet, post);
+        }
+        this.markDirty(doc);
+        this.broadcastSheetOrderChange(doc, post);
+        return;
+      }
+
+      case 'promptDuplicateSheet': {
+        const newName = await vscode.window.showInputBox({
+          prompt: `Duplicate "${msg.name}" as`,
+          value: `${msg.name} Copy`,
+          validateInput: (v) => (!v.trim() ? 'Name is required' : undefined),
+        });
+        if (!newName) return;
+        const src = getSheet(doc.workbook, msg.name);
+        const created = createWorksheet(doc.workbook, newName.trim());
+        // Deep-copy rows and meta
+        created.rows = JSON.parse(JSON.stringify(src.rows));
+        created.rowMeta = JSON.parse(JSON.stringify(src.rowMeta));
+        created.columns = JSON.parse(JSON.stringify(src.columns));
+        created.rowCount = src.rowCount;
+        created.colCount = src.colCount;
+        if (src.tables) created.tables = JSON.parse(JSON.stringify(src.tables));
+        if (src.freezePane) created.freezePane = { ...src.freezePane };
+        doc.activeSheet = newName.trim();
+        this.markDirty(doc);
+        this.broadcastSheetOrderChange(doc, post);
+        this.resyncSheet(doc, doc.activeSheet, post);
+        return;
+      }
+
+      case 'promptGoToCell': {
+        const ref = await vscode.window.showInputBox({
+          prompt: 'Go to cell (e.g. B12 or A1:C10)',
+          placeHolder: 'A1',
+        });
+        if (!ref) return;
+        post({ type: 'navigateToRef', ref: ref.trim() });
+        return;
+      }
+
+      case 'promptCreateTable': {
+        const a1 = rangeToA1(msg.range);
+        const rows = msg.range.endRow - msg.range.startRow + 1;
+        const cols = msg.range.endCol - msg.range.startCol + 1;
+        const name = await vscode.window.showInputBox({
+          prompt: `Table name for selection ${a1} (${rows} × ${cols})`,
+          value: `Table${(getSheet(doc.workbook, msg.sheetName).tables?.length ?? 0) + 1}`,
+          validateInput: (v) => (!v.trim() ? 'Name is required' : undefined),
+        });
+        if (!name) return;
+        const totalsPick = await vscode.window.showQuickPick(
+          ['No totals row (all rows are data)', 'Last row is a totals row'],
+          { placeHolder: `Selection: ${a1}` },
+        );
+        if (!totalsPick) return;
+        const hasTotalsRow = totalsPick.startsWith('Last');
+        const sheet = getSheet(doc.workbook, msg.sheetName);
+        const before = structuredCloneSheet(sheet);
+        createTable(sheet, msg.range, name.trim(), true, hasTotalsRow);
+        doc.undoStack.push({ sheetName: msg.sheetName, before, after: structuredCloneSheet(sheet), label: 'Create table' });
+        this.markDirty(doc);
+        this.resyncSheet(doc, msg.sheetName, post);
+        return;
+      }
+
       case 'exportWorkbook': {
         // Routed through the registered export commands so Save dialogs stay consistent.
         const map: Record<string, string> = {
@@ -635,13 +751,19 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
   async saveCustomDocument(doc: ExcelDocument): Promise<void> {
     doc.conflictWatcher?.notifyOwnWritePending();
-    await saveExcelWorkbook(doc.workbook, doc.uri);
+    const ok = await saveExcelWorkbook(doc.workbook, doc.uri);
+    if (!ok) {
+      throw new Error('SheetLab could not save the workbook. See the notification for details.');
+    }
     this.dirtyDocuments.delete(doc.uri.toString());
     await doc.conflictWatcher?.refreshKnownMtime();
   }
 
   async saveCustomDocumentAs(doc: ExcelDocument, destination: vscode.Uri): Promise<void> {
-    await saveExcelWorkbook(doc.workbook, destination);
+    const ok = await saveExcelWorkbook(doc.workbook, destination);
+    if (!ok) {
+      throw new Error('SheetLab could not save the workbook. See the notification for details.');
+    }
   }
 
   async revertCustomDocument(doc: ExcelDocument): Promise<void> {
@@ -679,4 +801,21 @@ function sliceRows(rows: Record<number, unknown>, start: number, end: number): R
 
 function structuredCloneSheet<T>(sheet: T): T {
   return JSON.parse(JSON.stringify(sheet));
+}
+
+
+function rangeToA1(range: { startRow: number; startCol: number; endRow: number; endCol: number }): string {
+  const col = (i: number) => {
+    let n = i + 1;
+    let s = '';
+    while (n > 0) {
+      const rem = (n - 1) % 26;
+      s = String.fromCharCode(65 + rem) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  };
+  const a = `${col(range.startCol)}${range.startRow + 1}`;
+  const b = `${col(range.endCol)}${range.endRow + 1}`;
+  return a === b ? a : `${a}:${b}`;
 }

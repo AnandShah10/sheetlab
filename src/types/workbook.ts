@@ -175,7 +175,8 @@ export type HostToWebviewMessage =
       };
     }
   | { type: 'uiCommand'; command: UiCommand }
-  | { type: 'error'; message: string; detail?: string };
+  | { type: 'error'; message: string; detail?: string }
+  | { type: 'navigateToRef'; ref: string };
 
 /** Focus/toggle actions triggered from the Command Palette or keybindings, routed to whichever SheetLab panel is active. */
 export type UiCommand =
@@ -226,7 +227,15 @@ export type WebviewToHostMessage =
   | { type: 'setRowHidden'; sheetName: string; row: number; hidden: boolean }
   | { type: 'showAllHidden'; sheetName: string; axis: 'row' | 'column' }
   | { type: 'createTable'; sheetName: string; range: CellRange; name: string; hasHeaderRow: boolean; hasTotalsRow?: boolean }
-  | { type: 'removeTable'; sheetName: string; name: string };
+  | { type: 'removeTable'; sheetName: string; name: string }
+  /** Host-side dialogs — webviews cannot use prompt()/confirm() (no allow-modals). */
+  | { type: 'requestExport' }
+  | { type: 'promptCreateSheet'; defaultName?: string; data?: string[][] }
+  | { type: 'promptRenameSheet'; oldName: string }
+  | { type: 'promptDeleteSheet'; name: string }
+  | { type: 'promptDuplicateSheet'; name: string }
+  | { type: 'promptGoToCell' }
+  | { type: 'promptCreateTable'; sheetName: string; range: CellRange };
 
 export interface SerializedWorkbookInit {
   meta: WorkbookMeta;
