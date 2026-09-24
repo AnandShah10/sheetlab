@@ -4,6 +4,13 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2]
+
+### Fixed
+- **`command 'sheetlab.runLinter' not found`** (and other analysis commands): `sheetlab.exportWorkbook` was registered twice during activate; the second `registerCommand` threw and aborted registration of every command listed after it (Trace, Lint, Profile, Explain)
+- Activation is more resilient: editor/export vs UI command registration are isolated
+- Explicit `onCommand:` activation events for analysis commands
+
 ## [0.2.1]
 
 ### Fixed

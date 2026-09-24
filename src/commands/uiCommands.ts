@@ -3,9 +3,13 @@ import { activePanelRegistry } from '../services/activePanelRegistry';
 import { UiCommand } from '../types/workbook';
 
 /**
- * Thin Command Palette / keybinding entry points that just forward to
- * whichever SheetLab panel currently has focus. If no SheetLab editor is
- * active, we tell the user rather than failing silently.
+ * Command Palette / keybinding entry points that forward to the last focused
+ * SheetLab webview via the uiCommand protocol.
+ *
+ * Do NOT register command IDs that are already registered elsewhere
+ * (e.g. sheetlab.exportWorkbook is owned by commands/export.ts).
+ * A duplicate registerCommand throws and aborts the rest of activate(),
+ * which is what made Trace/Lint/Profile appear as "command not found".
  */
 export function registerUiCommands(_context: vscode.ExtensionContext): vscode.Disposable[] {
   const bindings: Array<[string, UiCommand]> = [
@@ -18,7 +22,7 @@ export function registerUiCommands(_context: vscode.ExtensionContext): vscode.Di
     ['sheetlab.toggleGridlines', 'toggleGridlines'],
     ['sheetlab.freezePanes', 'freezePanesAtSelection'],
     ['sheetlab.unfreezePanes', 'unfreezePanes'],
-    ['sheetlab.exportWorkbook', 'openExport'],
+    // Analysis (must stay after freeze; never share IDs with export.ts)
     ['sheetlab.tracePrecedents', 'tracePrecedents'],
     ['sheetlab.traceDependents', 'traceDependents'],
     ['sheetlab.runLinter', 'runLinter'],
@@ -31,7 +35,9 @@ export function registerUiCommands(_context: vscode.ExtensionContext): vscode.Di
     vscode.commands.registerCommand(commandId, () => {
       const handled = activePanelRegistry.send(uiCommand);
       if (!handled) {
-        void vscode.window.showWarningMessage('Open a spreadsheet in SheetLab first.');
+        void vscode.window.showWarningMessage(
+          'Open a spreadsheet in SheetLab first, then run this command again.',
+        );
       }
     }),
   );

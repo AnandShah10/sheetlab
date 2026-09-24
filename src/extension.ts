@@ -5,39 +5,60 @@ import { registerOpenCsvAsSpreadsheet, registerOpenCsvAsPreview } from './comman
 import { registerOpenAsText } from './commands/openAsText';
 import { registerRefreshSpreadsheet } from './commands/refreshSpreadsheet';
 import { registerSaveSpreadsheet } from './commands/save';
-import { registerExportAsXlsx, registerExportAsCsv, registerExportAsTsv, registerExportWorkbook, registerSheetJsExports } from './commands/export';
+import {
+  registerExportAsXlsx,
+  registerExportAsCsv,
+  registerExportAsTsv,
+  registerExportWorkbook,
+  registerSheetJsExports,
+} from './commands/export';
 import { registerUiCommands } from './commands/uiCommands';
 import { activePanelRegistry } from './services/activePanelRegistry';
 
 /**
- * Activation is intentionally lightweight: `activationEvents` in
- * package.json only fires on `onLanguage:csv` / `onLanguage:tsv` (Custom
- * Editor `viewType` contributions activate the extension automatically for
- * their own selectors, so .xlsx/.xlsm/.xls don't need an explicit
- * activation event). We do NOT do any eager file scanning, workspace
- * indexing, or network calls here or anywhere else in the extension --
- * see spec section 39 (privacy) and section 38 (security).
+ * Activation is lightweight: custom editors + commands only.
+ * No eager file scanning, network, or telemetry.
  */
 export function activate(context: vscode.ExtensionContext): void {
-  context.subscriptions.push(
-    ExcelEditorProvider.register(context),
-    CsvSpreadsheetEditorProvider.register(context),
-    registerOpenCsvAsSpreadsheet(context),
-    registerOpenCsvAsPreview(context),
-    registerOpenAsText(context),
-    registerRefreshSpreadsheet(context),
-    registerSaveSpreadsheet(context),
-    registerExportAsXlsx(context, () => activePanelRegistry.getActiveWorkbook()),
-    registerExportAsCsv(context, () => activePanelRegistry.getActiveWorkbookAndSheet()),
-    registerExportAsTsv(context, () => activePanelRegistry.getActiveWorkbookAndSheet()),
-    registerExportWorkbook(context),
-    ...registerSheetJsExports(context, () => activePanelRegistry.getActiveWorkbook()),
-    ...registerUiCommands(context),
-  );
+  const push = (...items: Array<vscode.Disposable | vscode.Disposable[]>) => {
+    for (const item of items) {
+      if (Array.isArray(item)) context.subscriptions.push(...item);
+      else context.subscriptions.push(item);
+    }
+  };
+
+  try {
+    push(
+      ExcelEditorProvider.register(context),
+      CsvSpreadsheetEditorProvider.register(context),
+      registerOpenCsvAsSpreadsheet(context),
+      registerOpenCsvAsPreview(context),
+      registerOpenAsText(context),
+      registerRefreshSpreadsheet(context),
+      registerSaveSpreadsheet(context),
+      registerExportAsXlsx(context, () => activePanelRegistry.getActiveWorkbook()),
+      registerExportAsCsv(context, () => activePanelRegistry.getActiveWorkbookAndSheet()),
+      registerExportAsTsv(context, () => activePanelRegistry.getActiveWorkbookAndSheet()),
+      registerExportWorkbook(context),
+      ...registerSheetJsExports(context, () => activePanelRegistry.getActiveWorkbook()),
+    );
+  } catch (err) {
+    console.error('[SheetLab] Failed to register editors/export commands', err);
+    void vscode.window.showErrorMessage(
+      `SheetLab failed to activate core commands: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  try {
+    push(...registerUiCommands(context));
+  } catch (err) {
+    console.error('[SheetLab] Failed to register UI commands', err);
+    void vscode.window.showErrorMessage(
+      `SheetLab failed to register UI commands: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
 export function deactivate(): void {
-  // Editor providers and their per-document watchers are cleaned up via
-  // context.subscriptions and each CustomDocument's `dispose()`; nothing
-  // else to tear down here.
+  // Subscriptions dispose automatically.
 }
