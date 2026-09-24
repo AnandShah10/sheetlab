@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ExcelEditorProvider } from './editors/excelCustomEditor/excelEditorProvider';
 import { CsvSpreadsheetEditorProvider } from './editors/csvSpreadsheetEditor/csvEditorProvider';
-import { registerOpenCsvAsSpreadsheet } from './commands/openCsvAsSpreadsheet';
+import { registerOpenCsvAsSpreadsheet, registerOpenCsvAsPreview } from './commands/openCsvAsSpreadsheet';
 import { registerOpenAsText } from './commands/openAsText';
 import { registerRefreshSpreadsheet } from './commands/refreshSpreadsheet';
 import { registerSaveSpreadsheet } from './commands/save';
@@ -23,6 +23,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ExcelEditorProvider.register(context),
     CsvSpreadsheetEditorProvider.register(context),
     registerOpenCsvAsSpreadsheet(context),
+    registerOpenCsvAsPreview(context),
     registerOpenAsText(context),
     registerRefreshSpreadsheet(context),
     registerSaveSpreadsheet(context),

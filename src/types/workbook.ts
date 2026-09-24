@@ -142,7 +142,7 @@ export interface Workbook {
 
 /** Messages sent from the extension host to the webview. */
 export type HostToWebviewMessage =
-  | { type: 'init'; workbook: SerializedWorkbookInit; settings: GridSettings; textContent?: string }
+  | { type: 'init'; workbook: SerializedWorkbookInit; settings: GridSettings; textContent?: string; preferredViewMode?: 'spreadsheet' | 'text' | 'split' }
   | { type: 'textContent'; text: string }
   | { type: 'sheetData'; sheetName: string; rows: Record<number, RowData>; rowRangeStart: number; rowRangeEnd: number }
   | { type: 'applyEdit'; edit: CellEditResult }

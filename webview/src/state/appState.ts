@@ -69,12 +69,8 @@ export class AppState {
     this.visibleRowFilter = { [init.firstSheet.name]: null };
     this.settings = settings;
     this.showGridlines = settings.showGridlines;
-    if (this.meta.sourceKind === 'csv' || this.meta.sourceKind === 'tsv') {
-      // Default to split so text + grid are both visible for CSV/TSV.
-      this.viewMode = 'split';
-    } else {
-      this.viewMode = 'spreadsheet';
-    }
+    // Default grid-only; open-with-preview command sets preferredViewMode to split.
+    this.viewMode = 'spreadsheet';
     this.notify();
   }
 

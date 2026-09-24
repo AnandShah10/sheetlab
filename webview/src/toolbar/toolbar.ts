@@ -88,21 +88,16 @@ export class Toolbar {
   private viewModeGroup(): HTMLElement {
     const g = document.createElement('div');
     g.className = 'sheetlab-toolbar-group sheetlab-view-mode-group';
-    const modes: Array<['spreadsheet' | 'text' | 'split', string]> = [
-      ['spreadsheet', 'Grid'],
-      ['split', 'Split'],
-      ['text', 'Text'],
+    // Two distinct options only (not a 3-way control).
+    const modes: Array<['spreadsheet' | 'split', string, string]> = [
+      ['spreadsheet', 'Spreadsheet', 'Spreadsheet view (grid only)'],
+      ['split', 'Preview', 'Side-by-side text + grid preview'],
     ];
-    for (const [mode, label] of modes) {
+    for (const [mode, label, title] of modes) {
       const btn = document.createElement('button');
       btn.className = 'sheetlab-toolbar-btn sheetlab-view-mode-btn';
       btn.textContent = label;
-      btn.title =
-        mode === 'split'
-          ? 'Side-by-side text + spreadsheet'
-          : mode === 'text'
-            ? 'Source text only'
-            : 'Spreadsheet only';
+      btn.title = title;
       btn.dataset.mode = mode;
       btn.addEventListener('click', () => this.callbacks.onSetViewMode?.(mode));
       g.appendChild(btn);
@@ -138,7 +133,10 @@ export class Toolbar {
       viewGroup.style.display = isCsv ? 'inline-flex' : 'none';
       viewGroup.querySelectorAll('.sheetlab-view-mode-btn').forEach((el) => {
         const btn = el as HTMLButtonElement;
-        btn.classList.toggle('sheetlab-view-mode-active', btn.dataset.mode === appState.viewMode);
+        const isActive =
+          (btn.dataset.mode === 'spreadsheet' && appState.viewMode === 'spreadsheet') ||
+          (btn.dataset.mode === 'split' && appState.viewMode === 'split');
+        btn.classList.toggle('sheetlab-view-mode-active', isActive);
       });
     }
   }

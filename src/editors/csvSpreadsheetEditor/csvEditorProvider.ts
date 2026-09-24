@@ -37,6 +37,19 @@ import { trackPanelFocus } from '../../services/activePanelRegistry';
 export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'sheetlab.csvSpreadsheetEditor';
 
+  /** Set by open commands before `vscode.openWith` so init can pick grid vs preview. */
+  private static pendingViewMode: 'spreadsheet' | 'split' = 'spreadsheet';
+
+  static setPendingViewMode(mode: 'spreadsheet' | 'split'): void {
+    CsvSpreadsheetEditorProvider.pendingViewMode = mode;
+  }
+
+  static takePendingViewMode(): 'spreadsheet' | 'split' {
+    const mode = CsvSpreadsheetEditorProvider.pendingViewMode;
+    CsvSpreadsheetEditorProvider.pendingViewMode = 'spreadsheet';
+    return mode;
+  }
+
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   static register(context: vscode.ExtensionContext): vscode.Disposable {
@@ -144,10 +157,12 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
     switch (msg.type) {
       case 'ready': {
         const sheet = sync.getWorksheet();
+        const preferredViewMode = CsvSpreadsheetEditorProvider.takePendingViewMode();
         post({
           type: 'init',
           settings,
           textContent: session.sync.getDocumentText(),
+          preferredViewMode,
           workbook: {
             meta: {
               sourceKind: sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv',

@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM/ODS inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -77,6 +77,12 @@
         "title": "Open as Spreadsheet",
         "category": "SheetLab",
         "icon": "$(table)"
+      },
+      {
+        "command": "sheetlab.openCsvAsPreview",
+        "title": "Open with Text Preview",
+        "category": "SheetLab",
+        "icon": "$(split-horizontal)"
       },
       {
         "command": "sheetlab.openAsText",
@@ -197,6 +203,11 @@
           "group": "navigation@1"
         },
         {
+          "command": "sheetlab.openCsvAsPreview",
+          "when": "(resourceExtname == .csv || resourceExtname == .tsv) && activeCustomEditorId != sheetlab.csvSpreadsheetEditor",
+          "group": "navigation@2"
+        },
+        {
           "command": "sheetlab.openAsText",
           "when": "activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
           "group": "navigation@1"
@@ -211,7 +222,12 @@
         {
           "command": "sheetlab.openCsvAsSpreadsheet",
           "when": "resourceExtname == .csv || resourceExtname == .tsv",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "sheetlab.openCsvAsPreview",
+          "when": "resourceExtname == .csv || resourceExtname == .tsv",
+          "group": "navigation@2"
         }
       ],
       "commandPalette": [

@@ -163,6 +163,9 @@ onHostMessage((msg) => {
     }
     case 'init': {
       appState.initFromHost(msg.workbook, msg.settings);
+      if (msg.preferredViewMode) {
+        appState.viewMode = msg.preferredViewMode;
+      }
       if (msg.textContent != null) {
         textPreview.setTextFromHost(msg.textContent);
       }

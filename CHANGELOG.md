@@ -4,6 +4,14 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7]
+
+### Changed
+- **Two separate CSV/TSV open options** (not one combined control):
+  - **Open as Spreadsheet** — grid only
+  - **Open with Text Preview** — side-by-side text + grid
+- Toolbar shows **Spreadsheet** and **Preview** as two distinct buttons (CSV/TSV only)
+
 ## [0.1.6]
 
 ### Added
