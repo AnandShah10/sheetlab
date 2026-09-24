@@ -37,17 +37,43 @@ import { trackPanelFocus } from '../../services/activePanelRegistry';
 export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'sheetlab.csvSpreadsheetEditor';
 
-  /** Set by open commands before `vscode.openWith` so init can pick grid vs preview. */
-  private static pendingViewMode: 'spreadsheet' | 'split' = 'spreadsheet';
+  /**
+   * Preferred view mode per document URI. Survives re-open of the same custom
+   * editor (VS Code reuses the panel and may not fire resolve/ready again).
+   */
+  private static readonly preferredModeByUri = new Map<string, 'spreadsheet' | 'split'>();
 
-  static setPendingViewMode(mode: 'spreadsheet' | 'split'): void {
-    CsvSpreadsheetEditorProvider.pendingViewMode = mode;
+  /** Live webview panels so we can push a mode change when the user picks the other open command. */
+  private static readonly panelsByUri = new Map<string, vscode.WebviewPanel>();
+
+  static getPreferredMode(uri: vscode.Uri): 'spreadsheet' | 'split' {
+    return CsvSpreadsheetEditorProvider.preferredModeByUri.get(uri.toString()) ?? 'spreadsheet';
   }
 
-  static takePendingViewMode(): 'spreadsheet' | 'split' {
-    const mode = CsvSpreadsheetEditorProvider.pendingViewMode;
-    CsvSpreadsheetEditorProvider.pendingViewMode = 'spreadsheet';
-    return mode;
+  static setPreferredMode(uri: vscode.Uri, mode: 'spreadsheet' | 'split'): void {
+    CsvSpreadsheetEditorProvider.preferredModeByUri.set(uri.toString(), mode);
+  }
+
+  /**
+   * Set mode for this file, open/reveal the custom editor, and if a panel is
+   * already open push the new mode into the webview immediately.
+   */
+  static async openWithMode(uri: vscode.Uri, mode: 'spreadsheet' | 'split'): Promise<void> {
+    CsvSpreadsheetEditorProvider.setPreferredMode(uri, mode);
+    const key = uri.toString();
+    const existing = CsvSpreadsheetEditorProvider.panelsByUri.get(key);
+    // Always openWith so VS Code switches from the text editor to the custom editor.
+    await vscode.commands.executeCommand('vscode.openWith', uri, CsvSpreadsheetEditorProvider.viewType);
+    // Panel may still be the previous one (retainContextWhenHidden) — force mode on it.
+    const panel = CsvSpreadsheetEditorProvider.panelsByUri.get(key) ?? existing;
+    if (panel) {
+      panel.reveal(panel.viewColumn, false);
+      panel.webview.postMessage({ type: 'forceViewMode', mode });
+      // Second tick: webview may still be handling reveal/focus.
+      setTimeout(() => {
+        panel.webview.postMessage({ type: 'forceViewMode', mode });
+      }, 50);
+    }
   }
 
   constructor(private readonly context: vscode.ExtensionContext) {}
@@ -67,6 +93,9 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
   ): Promise<void> {
     const sync = new CsvDocumentSync(document);
     const session: CsvSession = { sync, undoStack: new UndoStack(), panel };
+
+    const docKey = document.uri.toString();
+    CsvSpreadsheetEditorProvider.panelsByUri.set(docKey, panel);
 
     panel.webview.options = {
       enableScripts: true,
@@ -138,6 +167,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
     });
 
     panel.onDidDispose(() => {
+      CsvSpreadsheetEditorProvider.panelsByUri.delete(docKey);
       changeSub.dispose();
       dirtySub.dispose();
       focusSub.dispose();
@@ -157,7 +187,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
     switch (msg.type) {
       case 'ready': {
         const sheet = sync.getWorksheet();
-        const preferredViewMode = CsvSpreadsheetEditorProvider.takePendingViewMode();
+        const preferredViewMode = CsvSpreadsheetEditorProvider.getPreferredMode(session.sync.getDocumentUri());
         post({
           type: 'init',
           settings,
@@ -182,7 +212,15 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
       }
 
       case 'setViewMode': {
-        // View mode is webview-local; acknowledge nothing required.
+        // Remember so the next open command / re-init matches the user's last choice
+        // for this file; open-as-spreadsheet / open-preview still override via openWithMode.
+        const mode = msg.mode === 'split' || msg.mode === 'text' ? 'split' : 'spreadsheet';
+        if (msg.mode === 'spreadsheet' || msg.mode === 'split') {
+          CsvSpreadsheetEditorProvider.setPreferredMode(session.sync.getDocumentUri(), msg.mode);
+        } else if (msg.mode === 'text') {
+          CsvSpreadsheetEditorProvider.setPreferredMode(session.sync.getDocumentUri(), 'split');
+        }
+        void mode;
         return;
       }
 

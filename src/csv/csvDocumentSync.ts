@@ -104,6 +104,10 @@ export class CsvDocumentSync implements vscode.Disposable {
     return this.document.uri.fsPath;
   }
 
+  getDocumentUri(): vscode.Uri {
+    return this.document.uri;
+  }
+
   /**
    * Replace the entire document text (from the side-by-side text pane) and
    * re-parse into the in-memory worksheet.

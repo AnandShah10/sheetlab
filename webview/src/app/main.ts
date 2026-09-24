@@ -144,6 +144,13 @@ document.addEventListener('keydown', (e) => {
 
 onHostMessage((msg) => {
   switch (msg.type) {
+    case 'forceViewMode': {
+      appState.viewMode = msg.mode;
+      root.dataset.viewMode = msg.mode;
+      appState.notify();
+      requestAnimationFrame(() => grid.reset());
+      break;
+    }
     case 'textContent': {
       textPreview.setTextFromHost(msg.text);
       break;

@@ -177,7 +177,8 @@ export type HostToWebviewMessage =
     }
   | { type: 'uiCommand'; command: UiCommand }
   | { type: 'error'; message: string; detail?: string }
-  | { type: 'navigateToRef'; ref: string };
+  | { type: 'navigateToRef'; ref: string }
+  | { type: 'forceViewMode'; mode: 'spreadsheet' | 'text' | 'split' };
 
 /** Focus/toggle actions triggered from the Command Palette or keybindings, routed to whichever SheetLab panel is active. */
 export type UiCommand =
