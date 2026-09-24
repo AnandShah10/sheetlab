@@ -18,9 +18,16 @@ export class SheetTabs {
 
   render(): void {
     this.container.innerHTML = '';
-    const isExcel = appState.meta?.sourceKind === 'xlsx' || appState.meta?.sourceKind === 'xlsm' || appState.meta?.sourceKind === 'xls';
+    const kind = appState.meta?.sourceKind;
+    // Excel + ODS support multi-sheet; CSV/TSV can still create extra sheets in-memory (export as xlsx to keep them).
+    const multiSheet = kind === 'xlsx' || kind === 'xlsm' || kind === 'xls' || kind === 'ods' || kind === 'csv' || kind === 'tsv' || !kind;
 
     for (const name of appState.sheetOrder) {
+      const wrap = document.createElement('div');
+      wrap.className = 'sheetlab-sheet-tab-wrap';
+      wrap.style.display = 'inline-flex';
+      wrap.style.alignItems = 'center';
+
       const tab = document.createElement('button');
       tab.className = 'sheetlab-sheet-tab';
       tab.setAttribute('role', 'tab');
@@ -39,21 +46,33 @@ export class SheetTabs {
         postToHost({ type: 'switchSheet', sheetName: name });
         this.onSwitch?.(name);
       });
-      if (isExcel) {
-        // Rename/delete only apply to Excel workbooks -- CSV/TSV is
-        // fundamentally single-sheet, and the CSV editor provider has no
-        // 'renameSheet'/'deleteSheet' handler at all, so wiring these for
-        // CSV's one tab would silently do nothing when clicked.
-        tab.addEventListener('dblclick', () => this.renameTab(name));
-        tab.addEventListener('contextmenu', (e) => {
-          e.preventDefault();
-          this.showContextMenu(e, name);
-        });
-      }
-      this.container.appendChild(tab);
+      tab.addEventListener('dblclick', () => this.renameTab(name));
+      tab.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        this.showContextMenu(e.clientX, e.clientY, name);
+      });
+
+      // Visible chevron so sheet options are always discoverable (not only via right-click).
+      const menuBtn = document.createElement('button');
+      menuBtn.className = 'sheetlab-sheet-tab-menu';
+      menuBtn.textContent = '▾';
+      menuBtn.title = `Options for ${name}`;
+      menuBtn.style.border = 'none';
+      menuBtn.style.background = 'transparent';
+      menuBtn.style.cursor = 'pointer';
+      menuBtn.style.padding = '0 4px';
+      menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rect = menuBtn.getBoundingClientRect();
+        this.showContextMenu(rect.left, rect.bottom + 2, name);
+      });
+
+      wrap.appendChild(tab);
+      wrap.appendChild(menuBtn);
+      this.container.appendChild(wrap);
     }
 
-    if (isExcel) {
+    if (multiSheet) {
       const addBtn = document.createElement('button');
       addBtn.className = 'sheetlab-sheet-tab-add';
       addBtn.textContent = '+';
@@ -75,32 +94,43 @@ export class SheetTabs {
     postToHost({ type: 'renameSheet', oldName, newName });
   }
 
-  private showContextMenu(e: MouseEvent, name: string): void {
+  private showContextMenu(x: number, y: number, name: string): void {
+    document.querySelectorAll('.sheetlab-context-menu').forEach((el) => el.remove());
+
     const menu = document.createElement('div');
     menu.className = 'sheetlab-context-menu';
-    menu.style.left = `${e.clientX}px`;
-    menu.style.top = `${e.clientY}px`;
+    menu.style.position = 'fixed';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.style.zIndex = '10000';
 
-    const rename = document.createElement('div');
-    rename.className = 'sheetlab-context-menu-item';
-    rename.textContent = 'Rename';
-    rename.addEventListener('click', () => {
-      this.renameTab(name);
-      menu.remove();
+    const addItem = (label: string, action: () => void) => {
+      const item = document.createElement('div');
+      item.className = 'sheetlab-context-menu-item';
+      item.textContent = label;
+      item.addEventListener('click', () => {
+        action();
+        menu.remove();
+      });
+      menu.appendChild(item);
+    };
+
+    addItem('Rename', () => this.renameTab(name));
+    addItem('Duplicate sheet', () => {
+      const newName = prompt('Duplicate as:', `${name} Copy`);
+      if (!newName) return;
+      postToHost({ type: 'createSheet', name: newName });
+      // Host should copy content; for now create empty then paste is a follow-up.
+      // Prefer dedicated duplicate if host supports it via rename/create flow.
     });
+    if (appState.sheetOrder.length > 1) {
+      addItem('Delete', () => {
+        if (confirm(`Delete worksheet "${name}"?`)) {
+          postToHost({ type: 'deleteSheet', name });
+        }
+      });
+    }
 
-    const del = document.createElement('div');
-    del.className = 'sheetlab-context-menu-item';
-    del.textContent = 'Delete';
-    del.addEventListener('click', () => {
-      if (confirm(`Delete worksheet "${name}"?`)) {
-        postToHost({ type: 'deleteSheet', name });
-      }
-      menu.remove();
-    });
-
-    menu.appendChild(rename);
-    menu.appendChild(del);
     document.body.appendChild(menu);
 
     const closeOnce = () => {

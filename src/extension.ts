@@ -5,7 +5,7 @@ import { registerOpenCsvAsSpreadsheet } from './commands/openCsvAsSpreadsheet';
 import { registerOpenAsText } from './commands/openAsText';
 import { registerRefreshSpreadsheet } from './commands/refreshSpreadsheet';
 import { registerSaveSpreadsheet } from './commands/save';
-import { registerExportAsXlsx, registerExportAsCsv } from './commands/export';
+import { registerExportAsXlsx, registerExportAsCsv, registerExportAsTsv, registerExportWorkbook, registerSheetJsExports } from './commands/export';
 import { registerUiCommands } from './commands/uiCommands';
 import { activePanelRegistry } from './services/activePanelRegistry';
 
@@ -28,6 +28,9 @@ export function activate(context: vscode.ExtensionContext): void {
     registerSaveSpreadsheet(context),
     registerExportAsXlsx(context, () => activePanelRegistry.getActiveWorkbook()),
     registerExportAsCsv(context, () => activePanelRegistry.getActiveWorkbookAndSheet()),
+    registerExportAsTsv(context, () => activePanelRegistry.getActiveWorkbookAndSheet()),
+    registerExportWorkbook(context),
+    ...registerSheetJsExports(context, () => activePanelRegistry.getActiveWorkbook()),
     ...registerUiCommands(context),
   );
 }

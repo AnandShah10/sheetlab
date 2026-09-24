@@ -64,7 +64,14 @@ export class QueryParseError extends Error {
 const AGG_FNS = new Set(['SUM', 'COUNT', 'AVG', 'MIN', 'MAX']);
 
 export function parseQuery(sql: string): ParsedQuery {
-  const tokens = tokenize(sql);
+  // Semicolon is a statement terminator. Support trailing `;` and
+  // multi-statement input by running the last non-empty statement.
+  const statements = sql
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const statement = statements[statements.length - 1] ?? '';
+  const tokens = tokenize(statement);
   let pos = 0;
 
   const peek = () => tokens[pos];
@@ -239,7 +246,7 @@ function tokenize(sql: string): Token[] {
 
   while (i < sql.length) {
     const ch = sql[i];
-    if (/\s/.test(ch)) { i++; continue; }
+    if (/\s/.test(ch) || ch === ';') { i++; continue; }
 
     if (ch === "'" || ch === '"') {
       const quote = ch;

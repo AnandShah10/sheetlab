@@ -17,6 +17,8 @@ export function registerUiCommands(_context: vscode.ExtensionContext): vscode.Di
     ['sheetlab.toggleFormulaBar', 'toggleFormulaBar'],
     ['sheetlab.toggleGridlines', 'toggleGridlines'],
     ['sheetlab.freezePanes', 'freezePanesAtSelection'],
+    ['sheetlab.unfreezePanes', 'unfreezePanes'],
+    ['sheetlab.exportWorkbook', 'openExport'],
   ];
 
   return bindings.map(([commandId, uiCommand]) =>

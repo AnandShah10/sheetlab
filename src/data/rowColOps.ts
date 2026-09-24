@@ -85,6 +85,25 @@ export function deleteColumn(sheet: Worksheet, at: number): void {
   sheet.columns = shiftedCols;
 }
 
+
+export function duplicateRow(sheet: Worksheet, at: number): void {
+  insertRow(sheet, at + 1);
+  const source = sheet.rows[at];
+  if (source) sheet.rows[at + 1] = JSON.parse(JSON.stringify(source));
+  const meta = sheet.rowMeta[at];
+  if (meta) sheet.rowMeta[at + 1] = { ...meta };
+}
+
+export function duplicateColumn(sheet: Worksheet, at: number): void {
+  insertColumn(sheet, at + 1);
+  for (const row of Object.values(sheet.rows)) {
+    if (row[at]) row[at + 1] = JSON.parse(JSON.stringify(row[at]));
+  }
+  if (sheet.columns[at]) {
+    sheet.columns[at + 1] = { ...sheet.columns[at] };
+  }
+}
+
 /** Apply a partial format patch (merge, not replace) to every cell in a range. */
 export function formatRange(sheet: Worksheet, range: { startRow: number; startCol: number; endRow: number; endCol: number }, format: Partial<Worksheet['rows'][number][number]['format']>): void {
   for (let r = range.startRow; r <= range.endRow; r++) {

@@ -43,7 +43,7 @@ export class SearchPanel {
   private build(): void {
     const header = document.createElement('div');
     header.className = 'sheetlab-panel-header';
-    header.innerHTML = `<span>Search Workbook</span>`;
+    header.innerHTML = `<span>Find and Replace</span>`;
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
     closeBtn.className = 'sheetlab-panel-close';
@@ -70,10 +70,30 @@ export class SearchPanel {
     this.caseCheckbox = this.labeledCheckbox('Case sensitive');
     this.wholeCellCheckbox = this.labeledCheckbox('Whole cell');
 
+    const actions = document.createElement('div');
+    actions.className = 'sheetlab-search-actions';
+    actions.style.display = 'flex';
+    actions.style.gap = '6px';
+    actions.style.flexWrap = 'wrap';
+
     const findBtn = document.createElement('button');
     findBtn.textContent = 'Find All';
     findBtn.className = 'sheetlab-btn-primary';
     findBtn.addEventListener('click', () => this.runSearch());
+
+    const replaceBtn = document.createElement('button');
+    replaceBtn.textContent = 'Replace';
+    replaceBtn.className = 'sheetlab-btn-secondary';
+    replaceBtn.addEventListener('click', () => this.runReplace('first'));
+
+    const replaceAllBtn = document.createElement('button');
+    replaceAllBtn.textContent = 'Replace All';
+    replaceAllBtn.className = 'sheetlab-btn-secondary';
+    replaceAllBtn.addEventListener('click', () => this.runReplace('all'));
+
+    actions.appendChild(findBtn);
+    actions.appendChild(replaceBtn);
+    actions.appendChild(replaceAllBtn);
 
     this.resultsList = document.createElement('div');
     this.resultsList.className = 'sheetlab-search-results';
@@ -93,7 +113,7 @@ export class SearchPanel {
     this.container.appendChild(this.queryInput);
     this.container.appendChild(this.replaceInput);
     this.container.appendChild(optionsRow);
-    this.container.appendChild(findBtn);
+    this.container.appendChild(actions);
     this.container.appendChild(this.resultsList);
   }
 
@@ -107,17 +127,30 @@ export class SearchPanel {
     return cb;
   }
 
+  private options() {
+    return {
+      scope: this.scopeSelect.value as 'currentSheet' | 'workbook',
+      regex: this.regexCheckbox.checked,
+      caseSensitive: this.caseCheckbox.checked,
+      wholeCell: this.wholeCellCheckbox.checked,
+    };
+  }
+
   private runSearch(): void {
     postToHost({
       type: 'runSearch',
       query: this.queryInput.value,
-      options: {
-        scope: this.scopeSelect.value as 'currentSheet' | 'workbook',
-        regex: this.regexCheckbox.checked,
-        caseSensitive: this.caseCheckbox.checked,
-        wholeCell: this.wholeCellCheckbox.checked,
-        replaceWith: this.replaceInput.value || undefined,
-      },
+      options: this.options(),
+    });
+  }
+
+  private runReplace(mode: 'first' | 'all'): void {
+    postToHost({
+      type: 'runReplace',
+      query: this.queryInput.value,
+      replaceWith: this.replaceInput.value,
+      options: this.options(),
+      mode,
     });
   }
 

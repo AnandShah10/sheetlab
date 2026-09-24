@@ -78,6 +78,27 @@ new Toolbar(toolbarEl, {
       pane: { row: appState.selection.active.row, col: appState.selection.active.col },
     });
   },
+  onUnfreezePanes: () => {
+    postToHost({
+      type: 'setFreezePane',
+      sheetName: appState.activeSheet,
+      pane: { row: 0, col: 0 },
+    });
+  },
+  onExport: () => {
+    const formats = ['xlsx', 'xlsm', 'xls', 'ods', 'csv', 'tsv'] as const;
+    const choice = prompt(
+      'Export format (xlsx, xlsm, xls, ods, csv, tsv):',
+      'xlsx',
+    );
+    if (!choice) return;
+    const format = choice.trim().toLowerCase();
+    if (!(formats as readonly string[]).includes(format)) {
+      alert(`Unsupported format "${choice}". Use one of: ${formats.join(', ')}`);
+      return;
+    }
+    postToHost({ type: 'exportWorkbook', format: format as (typeof formats)[number] });
+  },
 });
 
 nameBox.setOnNavigate((range) => {
@@ -217,6 +238,21 @@ function handleUiCommand(command: string): void {
       appState.showGridlines = !appState.showGridlines;
       appState.notify();
       break;
+    case 'unfreezePanes':
+      postToHost({
+        type: 'setFreezePane',
+        sheetName: appState.activeSheet,
+        pane: { row: 0, col: 0 },
+      });
+      break;
+    case 'openExport': {
+      const formats = ['xlsx', 'xlsm', 'xls', 'ods', 'csv', 'tsv'];
+      const choice = prompt('Export format (xlsx, xlsm, xls, ods, csv, tsv):', 'xlsx');
+      if (choice && formats.includes(choice.trim().toLowerCase())) {
+        postToHost({ type: 'exportWorkbook', format: choice.trim().toLowerCase() as any });
+      }
+      break;
+    }
     case 'freezePanesAtSelection':
       postToHost({
         type: 'setFreezePane',

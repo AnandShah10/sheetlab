@@ -106,7 +106,7 @@ export interface Worksheet {
   tables?: ExcelTableMeta[];
 }
 
-export type SourceKind = 'xlsx' | 'xls' | 'xlsm' | 'csv' | 'tsv';
+export type SourceKind = 'xlsx' | 'xls' | 'xlsm' | 'csv' | 'tsv' | 'ods';
 
 export interface WorkbookMeta {
   sourceKind: SourceKind;
@@ -186,7 +186,9 @@ export type UiCommand =
   | 'openNewWorksheetPrompt'
   | 'toggleFormulaBar'
   | 'toggleGridlines'
-  | 'freezePanesAtSelection';
+  | 'freezePanesAtSelection'
+  | 'unfreezePanes'
+  | 'openExport';
 
 /** Messages sent from the webview to the extension host. */
 export type WebviewToHostMessage =
@@ -199,10 +201,12 @@ export type WebviewToHostMessage =
   | { type: 'applyFilter'; sheetName: string; filter: FilterSpec }
   | { type: 'clearFilter'; sheetName: string }
   | { type: 'runSearch'; query: string; options: SearchOptions }
+  | { type: 'runReplace'; query: string; replaceWith: string; options: SearchOptions; mode: 'first' | 'all' }
   | { type: 'runQuery'; sql: string }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'save' }
+  | { type: 'exportWorkbook'; format: 'xlsx' | 'xlsm' | 'xls' | 'ods' | 'csv' | 'tsv' }
   | { type: 'switchSheet'; sheetName: string }
   | { type: 'createSheet'; name: string; data?: string[][] }
   | { type: 'renameSheet'; oldName: string; newName: string }
@@ -216,6 +220,8 @@ export type WebviewToHostMessage =
   | { type: 'deleteRow'; sheetName: string; at: number }
   | { type: 'insertColumn'; sheetName: string; at: number }
   | { type: 'deleteColumn'; sheetName: string; at: number }
+  | { type: 'duplicateRow'; sheetName: string; at: number }
+  | { type: 'duplicateColumn'; sheetName: string; at: number }
   | { type: 'setColumnHidden'; sheetName: string; col: number; hidden: boolean }
   | { type: 'setRowHidden'; sheetName: string; row: number; hidden: boolean }
   | { type: 'showAllHidden'; sheetName: string; axis: 'row' | 'column' }

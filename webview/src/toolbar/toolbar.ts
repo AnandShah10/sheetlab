@@ -10,6 +10,8 @@ export interface ToolbarCallbacks {
   onSort: (direction: 'asc' | 'desc') => void;
   onToggleFilter: () => void;
   onFreezePanes: () => void;
+  onUnfreezePanes?: () => void;
+  onExport?: () => void;
   /** Called after any format/action is applied, so the caller can scroll the affected cell into view -- important since the active cell is very often scrolled off-screen when a toolbar button is clicked. */
   onActionApplied?: () => void;
 }
@@ -41,6 +43,8 @@ export class Toolbar {
     const queryBtn = this.button('Query', 'query', () => this.callbacks.onOpenQuery());
     const cleanBtn = this.button('Clean Data', 'clean', () => this.callbacks.onOpenCleanData());
     const freezeBtn = this.button('Freeze Panes', 'freeze', () => this.callbacks.onFreezePanes());
+    const unfreezeBtn = this.button('Unfreeze Panes', 'freeze', () => this.callbacks.onUnfreezePanes?.());
+    const exportBtn = this.button('Export', 'save', () => this.callbacks.onExport?.());
     const boldBtn = this.button('B', 'bold', () => this.toggleFormat('bold'));
     const italicBtn = this.button('I', 'italic', () => this.toggleFormat('italic'));
     const underlineBtn = this.button('U', 'underline', () => this.toggleFormat('underline'));
@@ -62,7 +66,7 @@ export class Toolbar {
       return g;
     };
 
-    this.container.appendChild(group(saveBtn, this.dirtyIndicator));
+    this.container.appendChild(group(saveBtn, exportBtn, this.dirtyIndicator));
     this.container.appendChild(group(this.undoBtn, this.redoBtn));
     this.container.appendChild(group(searchBtn));
     this.container.appendChild(group(sortAscBtn, sortDescBtn, filterBtn));
@@ -70,7 +74,7 @@ export class Toolbar {
     this.container.appendChild(group(boldBtn, italicBtn, underlineBtn, fontColorInput, bgColorInput));
     this.container.appendChild(group(addBorderBtn, removeBorderBtn));
     this.container.appendChild(group(numberFormatSelect, customFormatGroup));
-    this.container.appendChild(group(freezeBtn));
+    this.container.appendChild(group(freezeBtn, unfreezeBtn));
 
     this.syncButtonStates();
   }

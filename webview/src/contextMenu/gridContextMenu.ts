@@ -18,11 +18,13 @@ export class GridContextMenu {
       ['—', () => {}],
       ['Insert Row Above', () => postToHost({ type: 'insertRow', sheetName: appState.activeSheet, at: range.startRow })],
       ['Insert Row Below', () => postToHost({ type: 'insertRow', sheetName: appState.activeSheet, at: range.endRow + 1 })],
+      ['Duplicate Row', () => postToHost({ type: 'duplicateRow', sheetName: appState.activeSheet, at: range.startRow })],
       ['Delete Row', () => postToHost({ type: 'deleteRow', sheetName: appState.activeSheet, at: range.startRow })],
       ['Hide Row', () => postToHost({ type: 'setRowHidden', sheetName: appState.activeSheet, row: range.startRow, hidden: true })],
       ['—', () => {}],
       ['Insert Column Left', () => postToHost({ type: 'insertColumn', sheetName: appState.activeSheet, at: range.startCol })],
       ['Insert Column Right', () => postToHost({ type: 'insertColumn', sheetName: appState.activeSheet, at: range.endCol + 1 })],
+      ['Duplicate Column', () => postToHost({ type: 'duplicateColumn', sheetName: appState.activeSheet, at: range.startCol })],
       ['Delete Column', () => postToHost({ type: 'deleteColumn', sheetName: appState.activeSheet, at: range.startCol })],
       ['Hide Column', () => postToHost({ type: 'setColumnHidden', sheetName: appState.activeSheet, col: range.startCol, hidden: true })],
       ['—', () => {}],
@@ -45,6 +47,7 @@ export class GridContextMenu {
       ['—', () => {}],
       ['Insert Column Left', () => postToHost({ type: 'insertColumn', sheetName: appState.activeSheet, at: col })],
       ['Insert Column Right', () => postToHost({ type: 'insertColumn', sheetName: appState.activeSheet, at: col + 1 })],
+      ['Duplicate Column', () => postToHost({ type: 'duplicateColumn', sheetName: appState.activeSheet, at: col })],
       ['Delete Column', () => postToHost({ type: 'deleteColumn', sheetName: appState.activeSheet, at: col })],
       ['Hide Column', () => postToHost({ type: 'setColumnHidden', sheetName: appState.activeSheet, col, hidden: true })],
       ['Show All Hidden Columns', () => postToHost({ type: 'showAllHidden', sheetName: appState.activeSheet, axis: 'column' })],
@@ -57,6 +60,7 @@ export class GridContextMenu {
     const items: MenuItem[] = [
       ['Insert Row Above', () => postToHost({ type: 'insertRow', sheetName: appState.activeSheet, at: row })],
       ['Insert Row Below', () => postToHost({ type: 'insertRow', sheetName: appState.activeSheet, at: row + 1 })],
+      ['Duplicate Row', () => postToHost({ type: 'duplicateRow', sheetName: appState.activeSheet, at: row })],
       ['Delete Row', () => postToHost({ type: 'deleteRow', sheetName: appState.activeSheet, at: row })],
       ['Hide Row', () => postToHost({ type: 'setRowHidden', sheetName: appState.activeSheet, row, hidden: true })],
       ['Show All Hidden Rows', () => postToHost({ type: 'showAllHidden', sheetName: appState.activeSheet, axis: 'row' })],
@@ -136,16 +140,40 @@ export class GridContextMenu {
   }
 
   private createTable(): void {
-    const name = prompt('Table name:', `Table${((appState.sheetSummaries[appState.activeSheet]?.tables ?? []).length) + 1}`);
+    const range = appState.selection.range;
+    const a1 = rangeLabel(range);
+    const name = prompt(
+      `Table name for selection ${a1} (${range.endRow - range.startRow + 1} rows × ${range.endCol - range.startCol + 1} cols):`,
+      `Table${((appState.sheetSummaries[appState.activeSheet]?.tables ?? []).length) + 1}`,
+    );
     if (!name) return;
-    const hasTotalsRow = confirm('Does the LAST row of the selection contain totals (a totals row), rather than data? Click Cancel if every row is data.');
+    const hasTotalsRow = confirm(
+      `Selection: ${a1}\n\nDoes the LAST row of this selection contain totals (a totals row), rather than data?\nClick Cancel if every row is data.`,
+    );
     postToHost({
       type: 'createTable',
       sheetName: appState.activeSheet,
-      range: appState.selection.range,
+      range,
       name,
       hasHeaderRow: true,
       hasTotalsRow,
     });
   }
+}
+
+
+function rangeLabel(range: { startRow: number; startCol: number; endRow: number; endCol: number }): string {
+  const col = (i: number) => {
+    let n = i + 1;
+    let s = '';
+    while (n > 0) {
+      const rem = (n - 1) % 26;
+      s = String.fromCharCode(65 + rem) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  };
+  const a = `${col(range.startCol)}${range.startRow + 1}`;
+  const b = `${col(range.endCol)}${range.endRow + 1}`;
+  return a === b ? a : `${a}:${b}`;
 }

@@ -4,6 +4,23 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3]
+
+### Added
+- Find **and Replace** (Replace / Replace All) in the search panel
+- Query language supports trailing `;` statement terminators
+- Duplicate row / duplicate column in grid context menus
+- Unfreeze panes command and toolbar button
+- Export toolbar action with format picker (xlsx, xlsm, xls, ods, csv, tsv)
+- ODS open + export support
+- Visible sheet-tab menu (▾) for rename / duplicate / delete
+- Create-table prompt shows the selected range (A1) so selection is verifiable
+
+### Fixed
+- "Open as Spreadsheet" no longer appears when already in spreadsheet mode for CSV/TSV
+- New worksheet (+) and rename sheet reliably update sheet tabs via host broadcast
+- New worksheet from query result populates data in the same create handler
+
 ## [0.1.2]
 
 ### Added

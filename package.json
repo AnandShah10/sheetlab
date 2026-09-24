@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -32,7 +32,8 @@
   ],
   "activationEvents": [
     "onLanguage:csv",
-    "onLanguage:tsv"
+    "onLanguage:tsv",
+    "onCustomEditor:sheetlab.excelEditor"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -49,6 +50,9 @@
           },
           {
             "filenamePattern": "*.xls"
+          },
+          {
+            "filenamePattern": "*.ods"
           }
         ],
         "priority": "default"
@@ -68,32 +72,139 @@
       }
     ],
     "commands": [
-      { "command": "sheetlab.openCsvAsSpreadsheet", "title": "Open as Spreadsheet", "category": "SheetLab", "icon": "$(table)" },
-      { "command": "sheetlab.openAsText", "title": "Open as Text", "category": "SheetLab", "icon": "$(file-text)" },
-      { "command": "sheetlab.refreshSpreadsheet", "title": "Refresh Spreadsheet", "category": "SheetLab", "icon": "$(refresh)" },
-      { "command": "sheetlab.saveSpreadsheet", "title": "Save Spreadsheet", "category": "SheetLab", "icon": "$(save)" },
-      { "command": "sheetlab.exportAsXlsx", "title": "Export as XLSX", "category": "SheetLab", "icon": "$(desktop-download)" },
-      { "command": "sheetlab.exportAsCsv", "title": "Export as CSV", "category": "SheetLab", "icon": "$(desktop-download)" },
-      { "command": "sheetlab.runQuery", "title": "Run Query", "category": "SheetLab", "icon": "$(database)" },
-      { "command": "sheetlab.searchWorkbook", "title": "Search Workbook", "category": "SheetLab", "icon": "$(search)" },
-      { "command": "sheetlab.cleanData", "title": "Clean Data", "category": "SheetLab", "icon": "$(sparkle)" },
-      { "command": "sheetlab.newWorksheet", "title": "New Worksheet", "category": "SheetLab", "icon": "$(add)" },
-      { "command": "sheetlab.goToCell", "title": "Go To Cell", "category": "SheetLab", "icon": "$(target)" },
-      { "command": "sheetlab.toggleFormulaBar", "title": "Toggle Formula Bar", "category": "SheetLab" },
-      { "command": "sheetlab.toggleGridlines", "title": "Toggle Gridlines", "category": "SheetLab" },
-      { "command": "sheetlab.freezePanes", "title": "Freeze Panes at Selection", "category": "SheetLab" }
+      {
+        "command": "sheetlab.openCsvAsSpreadsheet",
+        "title": "Open as Spreadsheet",
+        "category": "SheetLab",
+        "icon": "$(table)"
+      },
+      {
+        "command": "sheetlab.openAsText",
+        "title": "Open as Text",
+        "category": "SheetLab",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "sheetlab.refreshSpreadsheet",
+        "title": "Refresh Spreadsheet",
+        "category": "SheetLab",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "sheetlab.saveSpreadsheet",
+        "title": "Save Spreadsheet",
+        "category": "SheetLab",
+        "icon": "$(save)"
+      },
+      {
+        "command": "sheetlab.exportAsXlsx",
+        "title": "Export as XLSX",
+        "category": "SheetLab",
+        "icon": "$(desktop-download)"
+      },
+      {
+        "command": "sheetlab.exportAsCsv",
+        "title": "Export as CSV",
+        "category": "SheetLab",
+        "icon": "$(desktop-download)"
+      },
+      {
+        "command": "sheetlab.runQuery",
+        "title": "Run Query",
+        "category": "SheetLab",
+        "icon": "$(database)"
+      },
+      {
+        "command": "sheetlab.searchWorkbook",
+        "title": "Search Workbook",
+        "category": "SheetLab",
+        "icon": "$(search)"
+      },
+      {
+        "command": "sheetlab.cleanData",
+        "title": "Clean Data",
+        "category": "SheetLab",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "sheetlab.newWorksheet",
+        "title": "New Worksheet",
+        "category": "SheetLab",
+        "icon": "$(add)"
+      },
+      {
+        "command": "sheetlab.goToCell",
+        "title": "Go To Cell",
+        "category": "SheetLab",
+        "icon": "$(target)"
+      },
+      {
+        "command": "sheetlab.toggleFormulaBar",
+        "title": "Toggle Formula Bar",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.toggleGridlines",
+        "title": "Toggle Gridlines",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.freezePanes",
+        "title": "Freeze Panes at Selection",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.exportAsTsv",
+        "title": "Export as TSV",
+        "category": "SheetLab",
+        "icon": "$(desktop-download)"
+      },
+      {
+        "command": "sheetlab.exportAsOds",
+        "title": "Export as ODS",
+        "category": "SheetLab",
+        "icon": "$(desktop-download)"
+      },
+      {
+        "command": "sheetlab.exportAsXls",
+        "title": "Export as XLS",
+        "category": "SheetLab",
+        "icon": "$(desktop-download)"
+      },
+      {
+        "command": "sheetlab.exportAsXlsm",
+        "title": "Export as XLSM",
+        "category": "SheetLab",
+        "icon": "$(desktop-download)"
+      },
+      {
+        "command": "sheetlab.unfreezePanes",
+        "title": "Unfreeze Panes",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.exportWorkbook",
+        "title": "Export\u2026",
+        "category": "SheetLab",
+        "icon": "$(desktop-download)"
+      }
     ],
     "menus": {
       "editor/title": [
         {
           "command": "sheetlab.openCsvAsSpreadsheet",
-          "when": "resourceExtname == .csv || resourceExtname == .tsv",
+          "when": "(resourceExtname == .csv || resourceExtname == .tsv) && activeCustomEditorId != sheetlab.csvSpreadsheetEditor",
           "group": "navigation@1"
         },
         {
           "command": "sheetlab.openAsText",
           "when": "activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
           "group": "navigation@1"
+        },
+        {
+          "command": "sheetlab.exportWorkbook",
+          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
+          "group": "navigation@5"
         }
       ],
       "explorer/context": [
@@ -104,7 +215,10 @@
         }
       ],
       "commandPalette": [
-        { "command": "sheetlab.openAsText", "when": "false" }
+        {
+          "command": "sheetlab.openAsText",
+          "when": "false"
+        }
       ]
     },
     "configuration": {
@@ -112,13 +226,23 @@
       "properties": {
         "sheetlab.csv.delimiter": {
           "type": "string",
-          "enum": ["auto", ",", ";", "\t", "|"],
+          "enum": [
+            "auto",
+            ",",
+            ";",
+            "\t",
+            "|"
+          ],
           "default": "auto",
           "description": "Delimiter used when opening a CSV/TSV as a spreadsheet."
         },
         "sheetlab.csv.encoding": {
           "type": "string",
-          "enum": ["utf8", "utf8bom", "latin1"],
+          "enum": [
+            "utf8",
+            "utf8bom",
+            "latin1"
+          ],
           "default": "utf8",
           "description": "Text encoding used to read/write CSV/TSV files."
         },
@@ -129,13 +253,22 @@
         },
         "sheetlab.csv.hasHeaderRow": {
           "type": "string",
-          "enum": ["auto", "true", "false"],
+          "enum": [
+            "auto",
+            "true",
+            "false"
+          ],
           "default": "auto",
           "description": "Whether the first row of a CSV/TSV should be treated as a header row."
         },
         "sheetlab.grid.theme": {
           "type": "string",
-          "enum": ["auto", "dark", "light", "high-contrast"],
+          "enum": [
+            "auto",
+            "dark",
+            "light",
+            "high-contrast"
+          ],
           "default": "auto",
           "description": "Grid color theme. 'auto' follows the active VS Code theme."
         },
@@ -238,6 +371,12 @@
         "command": "sheetlab.freezePanes",
         "key": "alt+f",
         "mac": "alt+f",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.unfreezePanes",
+        "key": "alt+shift+f",
+        "mac": "alt+shift+f",
         "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
       }
     ]

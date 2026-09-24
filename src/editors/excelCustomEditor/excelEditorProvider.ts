@@ -19,10 +19,10 @@ import { getSheet, pasteRange, setCellRaw, clearRange, createWorksheet, renameWo
 import { sortRange } from '../../data/sort';
 import { evaluateFilter } from '../../data/filter';
 import { applyCleanup } from '../../data/cleanup';
-import { insertRow, deleteRow, insertColumn, deleteColumn, formatRange } from '../../data/rowColOps';
+import { insertRow, deleteRow, insertColumn, deleteColumn, duplicateRow, duplicateColumn, formatRange } from '../../data/rowColOps';
 import { setColumnHidden, setRowHidden, showAllColumns, showAllRows } from '../../data/visibility';
 import { createTable, removeTable } from '../../data/tables';
-import { searchWorkbook } from '../../services/searchService';
+import { searchWorkbook, replaceInWorkbook } from '../../services/searchService';
 import { runQuery } from '../../query/queryEngine';
 import { getWebviewHtml } from '../shared/webviewHtml';
 import { FormulaEngine } from '../../formula/formulaEngine';
@@ -92,6 +92,58 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     if (ext === '.xls') {
       const { workbook } = readLegacyXls(buffer, doc.uri.fsPath, maxRows);
       doc.workbook = workbook;
+    } else if (ext === '.ods') {
+      // ODS via SheetJS (xlsx package)
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const XLSX = require('xlsx') as typeof import('xlsx');
+      const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true, cellFormula: true });
+      const sheets: typeof doc.workbook.sheets = {};
+      const sheetOrder: string[] = [];
+      for (const name of wb.SheetNames) {
+        sheetOrder.push(name);
+        const ws = wb.Sheets[name];
+        const ref = ws['!ref'];
+        const range = ref ? XLSX.utils.decode_range(ref) : { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
+        const rows: Record<number, Record<number, import('../../types/workbook').Cell>> = {};
+        let rowCount = 0;
+        let colCount = 0;
+        for (let r = range.s.r; r <= Math.min(range.e.r, maxRows - 1); r++) {
+          const rowData: Record<number, import('../../types/workbook').Cell> = {};
+          let has = false;
+          for (let c = range.s.c; c <= range.e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            const cell = ws[addr];
+            if (!cell) continue;
+            has = true;
+            colCount = Math.max(colCount, c + 1);
+            if (cell.f) {
+              rowData[c] = { raw: `=${cell.f}`, value: cell.v ?? null, type: 'formula', formula: cell.f };
+            } else if (cell.t === 'n') {
+              rowData[c] = { raw: String(cell.v ?? ''), value: Number(cell.v), type: 'number' };
+            } else if (cell.v === undefined || cell.v === null || cell.v === '') {
+              rowData[c] = { raw: null, value: null, type: 'blank' };
+            } else {
+              rowData[c] = { raw: String(cell.v), value: String(cell.v), type: 'string' };
+            }
+          }
+          if (has) {
+            rows[r] = rowData;
+            rowCount = Math.max(rowCount, r + 1);
+          }
+        }
+        sheets[name] = {
+          name,
+          rowCount: Math.max(rowCount, 1),
+          colCount: Math.max(colCount, 1),
+          rows,
+          columns: {},
+          rowMeta: {},
+        };
+      }
+      doc.workbook = {
+        meta: { sourceKind: 'ods', sourcePath: doc.uri.fsPath, sheetOrder },
+        sheets,
+      };
     } else {
       const kind = ext === '.xlsm' ? 'xlsm' : 'xlsx';
       const { workbook } = await readXlsxWorkbook(buffer, doc.uri.fsPath, kind, { maxRows });
@@ -325,6 +377,31 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         return;
       }
 
+      case 'runReplace': {
+        const before = structuredCloneSheet(getSheet(doc.workbook, doc.activeSheet));
+        const { replaced, matches } = replaceInWorkbook(
+          doc.workbook,
+          doc.activeSheet,
+          msg.query,
+          msg.replaceWith,
+          msg.options,
+          msg.mode,
+        );
+        if (replaced > 0) {
+          doc.undoStack.push({
+            sheetName: doc.activeSheet,
+            before,
+            after: structuredCloneSheet(getSheet(doc.workbook, doc.activeSheet)),
+            label: 'Replace',
+          });
+          this.markDirty(doc);
+          this.resyncSheet(doc, doc.activeSheet, post);
+        }
+        post({ type: 'searchResults', matches, total: matches.length });
+        post({ type: 'undoRedoState', canUndo: doc.undoStack.canUndo(), canRedo: doc.undoStack.canRedo() });
+        return;
+      }
+
       case 'runQuery': {
         const result = runQuery(doc.workbook, msg.sql, getMaxQueryResultRows());
         if ('message' in result) {
@@ -404,6 +481,41 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         doc.undoStack.push({ sheetName: msg.sheetName, before, after: structuredCloneSheet(sheet), label: 'Delete column' });
         this.markDirty(doc);
         this.resyncSheet(doc, msg.sheetName, post);
+        return;
+      }
+
+      case 'duplicateRow': {
+        const sheet = getSheet(doc.workbook, msg.sheetName);
+        const before = structuredCloneSheet(sheet);
+        duplicateRow(sheet, msg.at);
+        doc.undoStack.push({ sheetName: msg.sheetName, before, after: structuredCloneSheet(sheet), label: 'Duplicate row' });
+        this.markDirty(doc);
+        this.resyncSheet(doc, msg.sheetName, post);
+        return;
+      }
+
+      case 'duplicateColumn': {
+        const sheet = getSheet(doc.workbook, msg.sheetName);
+        const before = structuredCloneSheet(sheet);
+        duplicateColumn(sheet, msg.at);
+        doc.undoStack.push({ sheetName: msg.sheetName, before, after: structuredCloneSheet(sheet), label: 'Duplicate column' });
+        this.markDirty(doc);
+        this.resyncSheet(doc, msg.sheetName, post);
+        return;
+      }
+
+      case 'exportWorkbook': {
+        // Routed through the registered export commands so Save dialogs stay consistent.
+        const map: Record<string, string> = {
+          xlsx: 'sheetlab.exportAsXlsx',
+          csv: 'sheetlab.exportAsCsv',
+          tsv: 'sheetlab.exportAsTsv',
+          ods: 'sheetlab.exportAsOds',
+          xls: 'sheetlab.exportAsXls',
+          xlsm: 'sheetlab.exportAsXlsm',
+        };
+        const cmd = map[msg.format] ?? 'sheetlab.exportAsXlsx';
+        await vscode.commands.executeCommand(cmd);
         return;
       }
 
