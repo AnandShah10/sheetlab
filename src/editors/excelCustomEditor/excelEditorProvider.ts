@@ -26,6 +26,7 @@ import { searchWorkbook, replaceInWorkbook } from '../../services/searchService'
 import { runQuery } from '../../query/queryEngine';
 import { getWebviewHtml } from '../shared/webviewHtml';
 import { FormulaEngine } from '../../formula/formulaEngine';
+import { AnalysisService } from '../../services/analysisService';
 import { trackPanelFocus } from '../../services/activePanelRegistry';
 
 /** One instance per open .xlsx/.xls/.xlsm document — VS Code's CustomDocument contract. */
@@ -35,6 +36,7 @@ class ExcelDocument implements vscode.CustomDocument {
   readonly undoStack = new UndoStack();
   conflictWatcher?: ExcelConflictWatcher;
   formulaEngine?: FormulaEngine;
+  analysis?: AnalysisService;
   private readonly onDidDisposeEmitter = new vscode.EventEmitter<void>();
   readonly onDidDispose = this.onDidDisposeEmitter.event;
 
@@ -167,6 +169,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     if (isCalculationEnabled()) {
       doc.formulaEngine = new FormulaEngine(doc.workbook.sheets, doc.workbook.meta.sheetOrder);
     }
+    doc.analysis = new AnalysisService(() => doc.workbook);
   }
 
   private async handleExternalChange(doc: ExcelDocument): Promise<void> {
@@ -257,7 +260,8 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
           ? this.editViaFormulaEngine(doc, msg.sheetName, msg.row, msg.col, msg.raw)
           : setCellRaw(sheet, msg.row, msg.col, msg.raw);
         doc.undoStack.push({ sheetName: msg.sheetName, before, after: structuredCloneSheet(sheet), label: 'Edit cell' });
-        this.markDirty(doc);
+        doc.analysis?.invalidate();
+    this.markDirty(doc);
         post({ type: 'applyEdit', edit: { sheetName: msg.sheetName, row: msg.row, col: msg.col, cell } });
         post({ type: 'undoRedoState', canUndo: doc.undoStack.canUndo(), canRedo: doc.undoStack.canRedo() });
         return;
@@ -519,6 +523,40 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       }
 
 
+      case 'tracePrecedents': {
+        if (!doc.analysis) doc.analysis = new AnalysisService(() => doc.workbook);
+        const tree = doc.analysis.tracePrecedents({ sheetName: msg.sheetName, row: msg.row, col: msg.col });
+        post({ type: 'analysisTraceResult', direction: 'precedents', tree, origin: { sheetName: msg.sheetName, row: msg.row, col: msg.col } });
+        return;
+      }
+      case 'traceDependents': {
+        if (!doc.analysis) doc.analysis = new AnalysisService(() => doc.workbook);
+        const tree = doc.analysis.traceDependents({ sheetName: msg.sheetName, row: msg.row, col: msg.col });
+        post({ type: 'analysisTraceResult', direction: 'dependents', tree, origin: { sheetName: msg.sheetName, row: msg.row, col: msg.col } });
+        return;
+      }
+      case 'runLinter': {
+        if (!doc.analysis) doc.analysis = new AnalysisService(() => doc.workbook);
+        post({ type: 'analysisDiagnostics', diagnostics: doc.analysis.getDiagnostics() });
+        return;
+      }
+      case 'runProfile': {
+        if (!doc.analysis) doc.analysis = new AnalysisService(() => doc.workbook);
+        post({ type: 'analysisProfile', profile: doc.analysis.getProfile() });
+        return;
+      }
+      case 'explainCell': {
+        if (!doc.analysis) doc.analysis = new AnalysisService(() => doc.workbook);
+        const addr = { sheetName: msg.sheetName, row: msg.row, col: msg.col };
+        const tree = doc.analysis.tracePrecedents(addr);
+        const diags = doc.analysis.getDiagnostics().filter(
+          (d) => d.sheetName === msg.sheetName && d.row === msg.row && d.col === msg.col,
+        );
+        post({ type: 'analysisTraceResult', direction: 'precedents', tree, origin: addr });
+        if (diags.length) post({ type: 'analysisDiagnostics', diagnostics: diags });
+        return;
+      }
+
       case 'requestExport': {
         await vscode.commands.executeCommand('sheetlab.exportWorkbook');
         return;
@@ -762,6 +800,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     const key = doc.uri.toString();
     this.documents.set(key, doc);
     this.dirtyDocuments.add(key);
+    doc.analysis?.invalidate();
     // Content-change event (we manage undo inside the webview/host, not via VS Code edits).
     this.onDidChangeCustomDocumentEmitter.fire({ document: doc });
   }

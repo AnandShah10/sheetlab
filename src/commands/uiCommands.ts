@@ -19,6 +19,11 @@ export function registerUiCommands(_context: vscode.ExtensionContext): vscode.Di
     ['sheetlab.freezePanes', 'freezePanesAtSelection'],
     ['sheetlab.unfreezePanes', 'unfreezePanes'],
     ['sheetlab.exportWorkbook', 'openExport'],
+    ['sheetlab.tracePrecedents', 'tracePrecedents'],
+    ['sheetlab.traceDependents', 'traceDependents'],
+    ['sheetlab.runLinter', 'runLinter'],
+    ['sheetlab.analyzeWorkbook', 'runProfile'],
+    ['sheetlab.explainCell', 'explainCell'],
   ];
 
   return bindings.map(([commandId, uiCommand]) =>

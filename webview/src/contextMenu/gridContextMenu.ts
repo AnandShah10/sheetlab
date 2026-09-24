@@ -35,6 +35,10 @@ export class GridContextMenu {
       tableHere
         ? ['Remove Table', () => postToHost({ type: 'removeTable', sheetName: appState.activeSheet, name: tableHere.name })]
         : ['Create Table from Selection', () => this.createTable(range)],
+      ['—', () => {}],
+      ['Trace Precedents', () => postToHost({ type: 'tracePrecedents', sheetName: appState.activeSheet, row: range.startRow, col: range.startCol })],
+      ['Trace Dependents', () => postToHost({ type: 'traceDependents', sheetName: appState.activeSheet, row: range.startRow, col: range.startCol })],
+      ['Explain Cell', () => postToHost({ type: 'explainCell', sheetName: appState.activeSheet, row: range.startRow, col: range.startCol })],
     ];
 
     this.render(x, y, items);

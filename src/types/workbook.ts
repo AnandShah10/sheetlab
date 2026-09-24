@@ -178,7 +178,10 @@ export type HostToWebviewMessage =
   | { type: 'uiCommand'; command: UiCommand }
   | { type: 'error'; message: string; detail?: string }
   | { type: 'navigateToRef'; ref: string }
-  | { type: 'forceViewMode'; mode: 'spreadsheet' | 'text' | 'split' };
+  | { type: 'forceViewMode'; mode: 'spreadsheet' | 'text' | 'split' }
+  | { type: 'analysisTraceResult'; direction: 'precedents' | 'dependents'; tree: unknown; origin: { sheetName: string; row: number; col: number } }
+  | { type: 'analysisDiagnostics'; diagnostics: unknown[] }
+  | { type: 'analysisProfile'; profile: unknown };
 
 /** Focus/toggle actions triggered from the Command Palette or keybindings, routed to whichever SheetLab panel is active. */
 export type UiCommand =
@@ -191,7 +194,12 @@ export type UiCommand =
   | 'toggleGridlines'
   | 'freezePanesAtSelection'
   | 'unfreezePanes'
-  | 'openExport';
+  | 'openExport'
+  | 'tracePrecedents'
+  | 'traceDependents'
+  | 'runLinter'
+  | 'runProfile'
+  | 'explainCell';
 
 /** Messages sent from the webview to the extension host. */
 export type WebviewToHostMessage =
@@ -239,7 +247,12 @@ export type WebviewToHostMessage =
   | { type: 'promptGoToCell' }
   | { type: 'promptCreateTable'; sheetName: string; range: CellRange }
   | { type: 'setViewMode'; mode: 'spreadsheet' | 'text' | 'split' }
-  | { type: 'applyTextContent'; text: string };
+  | { type: 'applyTextContent'; text: string }
+  | { type: 'tracePrecedents'; sheetName: string; row: number; col: number }
+  | { type: 'traceDependents'; sheetName: string; row: number; col: number }
+  | { type: 'runLinter' }
+  | { type: 'runProfile' }
+  | { type: 'explainCell'; sheetName: string; row: number; col: number };
 
 export interface SerializedWorkbookInit {
   meta: WorkbookMeta;

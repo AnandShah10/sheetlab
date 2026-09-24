@@ -59,7 +59,6 @@ export class SheetTabs {
         this.showContextMenu(e.clientX, e.clientY, name);
       });
 
-      // Visible chevron so sheet options are always discoverable (not only via right-click).
       const menuBtn = document.createElement('button');
       menuBtn.className = 'sheetlab-sheet-tab-menu';
       menuBtn.textContent = '▴';

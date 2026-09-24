@@ -12,6 +12,7 @@ import { DataCleaningPanel } from '../dataCleaning/dataCleaningPanel';
 import { FilterPopup } from '../contextMenu/filterPopup';
 import { parseA1OrRange } from './cellRef';
 import { TextPreview } from '../textPreview/textPreview';
+import { AnalysisPanel } from '../analysis/analysisPanel';
 
 const root = document.getElementById('sheetlab-root')!;
 root.innerHTML = '';
@@ -31,6 +32,7 @@ const searchPanelEl = div('sheetlab-search-panel-container');
 const queryPanelEl = div('sheetlab-query-panel-container');
 const cleanPanelEl = div('sheetlab-clean-panel-container');
 const filterPopupEl = div('sheetlab-filter-popup-container');
+const analysisPanelEl = div('sheetlab-analysis-panel-container');
 
 barsRow.appendChild(nameBoxEl);
 barsRow.appendChild(formulaBarEl);
@@ -47,6 +49,7 @@ root.appendChild(searchPanelEl);
 root.appendChild(queryPanelEl);
 root.appendChild(cleanPanelEl);
 root.appendChild(filterPopupEl);
+root.appendChild(analysisPanelEl);
 
 const grid = new Grid(gridEl);
 const textPreview = new TextPreview(textPreviewEl);
@@ -58,6 +61,7 @@ const searchPanel = new SearchPanel(searchPanelEl);
 const queryPanel = new QueryPanel(queryPanelEl);
 const cleanPanel = new DataCleaningPanel(cleanPanelEl);
 const filterPopup = new FilterPopup(filterPopupEl);
+const analysisPanel = new AnalysisPanel(analysisPanelEl);
 
 new Toolbar(toolbarEl, {
   onOpenSearch: () => searchPanel.toggle(),
@@ -112,6 +116,16 @@ nameBox.setOnNavigate((range) => {
   grid.scrollToCell(range.startRow, range.startCol);
 });
 
+analysisPanel.setOnNavigate((sheetName, row, col) => {
+  if (sheetName !== appState.activeSheet) {
+    postToHost({ type: 'switchSheet', sheetName });
+    appState.activeSheet = sheetName;
+  }
+  appState.selection = { active: { row, col }, range: { startRow: row, startCol: col, endRow: row, endCol: col }, editing: false };
+  appState.notify();
+  grid.scrollToCell(row, col);
+});
+
 searchPanel.setOnNavigate((sheetName, row, col) => {
   if (sheetName !== appState.activeSheet) {
     postToHost({ type: 'switchSheet', sheetName });
@@ -137,7 +151,7 @@ sheetTabs.setOnSwitch(() => grid.reset());
 // previously the only way to close one was the small "X" button.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  for (const panel of [searchPanel, queryPanel, cleanPanel, filterPopup]) {
+  for (const panel of [searchPanel, queryPanel, cleanPanel, filterPopup, analysisPanel]) {
     panel.close();
   }
 });
@@ -275,6 +289,11 @@ function handleUiCommand(command: string): void {
         pane: { row: 0, col: 0 },
       });
       break;
+    case 'tracePrecedents': analysisPanel.requestPrecedents(); break;
+    case 'traceDependents': analysisPanel.requestDependents(); break;
+    case 'runLinter': analysisPanel.requestLinter(); break;
+    case 'runProfile': analysisPanel.requestProfile(); break;
+    case 'explainCell': analysisPanel.requestExplain(); break;
     case 'openExport': {
       postToHost({ type: 'requestExport' });
       break;

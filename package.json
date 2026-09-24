@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM/ODS inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -193,6 +193,36 @@
         "title": "Export\u2026",
         "category": "SheetLab",
         "icon": "$(desktop-download)"
+      },
+      {
+        "command": "sheetlab.tracePrecedents",
+        "title": "Trace Precedents",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.traceDependents",
+        "title": "Trace Dependents",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.runLinter",
+        "title": "Run Linter",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.analyzeWorkbook",
+        "title": "Analyze Workbook",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.explainCell",
+        "title": "Explain Cell",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.showProblems",
+        "title": "Show Problems",
+        "category": "SheetLab"
       }
     ],
     "menus": {
@@ -337,6 +367,21 @@
           "type": "boolean",
           "default": false,
           "description": "Opt-in anonymous usage telemetry. SheetLab never sends workbook or CSV contents anywhere, regardless of this setting."
+        },
+        "sheetlab.analysis.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable workbook analysis (dependency graph, lint, profile)."
+        },
+        "sheetlab.lint.maxDiagnostics": {
+          "type": "number",
+          "default": 500,
+          "description": "Maximum diagnostics reported by the spreadsheet linter."
+        },
+        "sheetlab.dependencies.maxTraversalDepth": {
+          "type": "number",
+          "default": 12,
+          "description": "Max depth for Trace Precedents/Dependents."
         }
       }
     },

@@ -4,6 +4,17 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0]
+
+### Added — Spreadsheet engineering (Phase 1 core)
+- **Analysis core**: formula reference extraction, dependency graph, diagnostics framework, workbook profiler
+- **Trace Precedents / Trace Dependents** (command palette + cell context menu) with navigable tree panel
+- **Run Linter**: circular refs, formula errors, broken sheet refs, inconsistent formula patterns, duplicate headers, unused sheets
+- **Analyze Workbook** profile (sheet stats, formula density, cycles, hotspots)
+- **Explain Cell**: precedents + cell-scoped diagnostics
+- Settings: `sheetlab.analysis.enabled`, `sheetlab.lint.maxDiagnostics`, `sheetlab.dependencies.maxTraversalDepth`
+- Unit tests for formula refs, pattern normalization, dependency graph cycles
+
 ## [0.1.8]
 
 ### Fixed
