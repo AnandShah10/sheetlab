@@ -4,6 +4,20 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1]
+
+### Fixed
+- Command Palette actions work after focus leaves the webview (keeps last active SheetLab panel)
+- Analysis actions no longer require right-click (selection was lost on context menu)
+
+### Added
+- Toolbar buttons: **Precedents**, **Dependents**, **Lint**, **Profile**, **Explain**, **Analysis**
+- Editor title actions for Lint / Analyze / Trace Precedents
+- Keybindings: `Ctrl+Shift+[` precedents, `Ctrl+Shift+]` dependents, `Ctrl+Shift+;` lint
+
+### Note
+- VS Code **Ctrl+P** is Quick Open (files), not the Command Palette — use **Ctrl+Shift+P** (Cmd+Shift+P on Mac) and type `SheetLab:`
+
 ## [0.2.0]
 
 ### Added — Spreadsheet engineering (Phase 1 core)

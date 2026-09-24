@@ -13,6 +13,12 @@ export interface ToolbarCallbacks {
   onUnfreezePanes?: () => void;
   onExport?: () => void;
   onSetViewMode?: (mode: 'spreadsheet' | 'text' | 'split') => void;
+  onTracePrecedents?: () => void;
+  onTraceDependents?: () => void;
+  onRunLinter?: () => void;
+  onAnalyzeWorkbook?: () => void;
+  onExplainCell?: () => void;
+  onOpenAnalysis?: () => void;
   /** Called after any format/action is applied, so the caller can scroll the affected cell into view -- important since the active cell is very often scrolled off-screen when a toolbar button is clicked. */
   onActionApplied?: () => void;
 }
@@ -76,6 +82,18 @@ export class Toolbar {
     this.container.appendChild(group(addBorderBtn, removeBorderBtn));
     this.container.appendChild(group(numberFormatSelect, customFormatGroup));
     this.container.appendChild(group(freezeBtn, unfreezeBtn));
+
+    // Analysis — always available; uses current selection without right-click
+    const analysisGroup = group(
+      this.button('Precedents', 'search', () => this.callbacks.onTracePrecedents?.()),
+      this.button('Dependents', 'search', () => this.callbacks.onTraceDependents?.()),
+      this.button('Lint', 'clean', () => this.callbacks.onRunLinter?.()),
+      this.button('Profile', 'query', () => this.callbacks.onAnalyzeWorkbook?.()),
+      this.button('Explain', 'search', () => this.callbacks.onExplainCell?.()),
+      this.button('Analysis', 'search', () => this.callbacks.onOpenAnalysis?.()),
+    );
+    analysisGroup.dataset.role = 'analysis';
+    this.container.appendChild(analysisGroup);
 
     // CSV/TSV view mode toggles (hidden for Excel)
     const viewGroup = this.viewModeGroup();

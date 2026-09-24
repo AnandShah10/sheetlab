@@ -7,21 +7,23 @@ export interface ActiveWorkbookAccessor {
 }
 
 /**
- * Command Palette commands like "SheetLab: Run Query" or "SheetLab: Go To
- * Cell" don't know which open SheetLab editor the user means -- VS Code
- * doesn't hand command callbacks a reference to "the active custom editor's
- * webview". This registry is populated by each editor provider when its
- * panel becomes active/visible, so commands can find and message the right
- * target via a small `uiCommand` protocol message the webview interprets
- * (open the search panel, open the query panel, toggle the formula bar, ...).
+ * Command Palette commands need a target webview. Opening the palette moves
+ * focus off the custom editor, so we keep the *last* focused SheetLab panel
+ * and only clear it when that panel is disposed — not merely when it becomes
+ * inactive.
  */
 class ActivePanelRegistry {
   private active: ((m: HostToWebviewMessage) => void) | undefined;
   private accessor: ActiveWorkbookAccessor | undefined;
+  /** Last SheetLab panel that had focus (survives Command Palette focus steal). */
+  private lastPost: ((m: HostToWebviewMessage) => void) | undefined;
+  private lastAccessor: ActiveWorkbookAccessor | undefined;
 
   setActive(post: (m: HostToWebviewMessage) => void, accessor?: ActiveWorkbookAccessor): void {
     this.active = post;
     this.accessor = accessor;
+    this.lastPost = post;
+    this.lastAccessor = accessor;
   }
 
   clearIfCurrent(post: (m: HostToWebviewMessage) => void): void {
@@ -29,25 +31,31 @@ class ActivePanelRegistry {
       this.active = undefined;
       this.accessor = undefined;
     }
+    if (this.lastPost === post) {
+      this.lastPost = undefined;
+      this.lastAccessor = undefined;
+    }
   }
 
   send(command: UiCommand): boolean {
-    if (!this.active) return false;
-    this.active({ type: 'uiCommand', command });
+    const post = this.active ?? this.lastPost;
+    if (!post) return false;
+    post({ type: 'uiCommand', command });
     return true;
   }
 
   getActiveWorkbook(): Workbook | undefined {
-    return this.accessor?.getWorkbook();
+    return (this.accessor ?? this.lastAccessor)?.getWorkbook();
   }
 
   getActiveWorkbookAndSheet(): { workbook: Workbook; sheetName: string } | undefined {
-    if (!this.accessor) return undefined;
-    return { workbook: this.accessor.getWorkbook(), sheetName: this.accessor.getActiveSheetName() };
+    const acc = this.accessor ?? this.lastAccessor;
+    if (!acc) return undefined;
+    return { workbook: acc.getWorkbook(), sheetName: acc.getActiveSheetName() };
   }
 
   hasActive(): boolean {
-    return this.active !== undefined;
+    return this.active !== undefined || this.lastPost !== undefined;
   }
 }
 
@@ -58,7 +66,8 @@ export function trackPanelFocus(
   post: (m: HostToWebviewMessage) => void,
   accessor?: ActiveWorkbookAccessor,
 ): vscode.Disposable {
-  if (panel.active) activePanelRegistry.setActive(post, accessor);
+  // Register immediately so commands work even before the next focus event.
+  activePanelRegistry.setActive(post, accessor);
   const sub = panel.onDidChangeViewState((e) => {
     if (e.webviewPanel.active) {
       activePanelRegistry.setActive(post, accessor);

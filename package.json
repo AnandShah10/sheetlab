@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM/ODS inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -246,6 +246,21 @@
           "command": "sheetlab.exportWorkbook",
           "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
           "group": "navigation@5"
+        },
+        {
+          "command": "sheetlab.runLinter",
+          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
+          "group": "navigation@10"
+        },
+        {
+          "command": "sheetlab.analyzeWorkbook",
+          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
+          "group": "navigation@11"
+        },
+        {
+          "command": "sheetlab.tracePrecedents",
+          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
+          "group": "navigation@12"
         }
       ],
       "explorer/context": [
@@ -438,6 +453,30 @@
         "command": "sheetlab.unfreezePanes",
         "key": "alt+shift+f",
         "mac": "alt+shift+f",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.tracePrecedents",
+        "key": "ctrl+shift+[",
+        "mac": "cmd+shift+[",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.traceDependents",
+        "key": "ctrl+shift+]",
+        "mac": "cmd+shift+]",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.runLinter",
+        "key": "ctrl+shift+;",
+        "mac": "cmd+shift+;",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.analyzeWorkbook",
+        "key": "ctrl+shift+'",
+        "mac": "cmd+shift+'",
         "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
       }
     ]

@@ -108,6 +108,12 @@ new Toolbar(toolbarEl, {
     // Grid needs a layout pass when leaving text-only mode
     requestAnimationFrame(() => grid.reset());
   },
+  onTracePrecedents: () => analysisPanel.requestPrecedents(),
+  onTraceDependents: () => analysisPanel.requestDependents(),
+  onRunLinter: () => analysisPanel.requestLinter(),
+  onAnalyzeWorkbook: () => analysisPanel.requestProfile(),
+  onExplainCell: () => analysisPanel.requestExplain(),
+  onOpenAnalysis: () => analysisPanel.toggle(),
 });
 
 nameBox.setOnNavigate((range) => {

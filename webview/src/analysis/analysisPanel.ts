@@ -81,14 +81,17 @@ export class AnalysisPanel {
   }
 
   requestPrecedents(): void {
+    // Snapshot selection immediately — toolbar/commands must not rely on context menu focus.
+    const sheetName = appState.activeSheet;
     const { row, col } = appState.selection.active;
-    postToHost({ type: 'tracePrecedents', sheetName: appState.activeSheet, row, col });
+    postToHost({ type: 'tracePrecedents', sheetName, row, col });
     this.open();
   }
 
   requestDependents(): void {
+    const sheetName = appState.activeSheet;
     const { row, col } = appState.selection.active;
-    postToHost({ type: 'traceDependents', sheetName: appState.activeSheet, row, col });
+    postToHost({ type: 'traceDependents', sheetName, row, col });
     this.open();
   }
 
