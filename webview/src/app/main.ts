@@ -164,6 +164,20 @@ document.addEventListener('keydown', (e) => {
 
 onHostMessage((msg) => {
   switch (msg.type) {
+    case 'forceNavigate': {
+      if (msg.sheetName !== appState.activeSheet) {
+        postToHost({ type: 'switchSheet', sheetName: msg.sheetName });
+        appState.activeSheet = msg.sheetName;
+      }
+      appState.selection = {
+        active: { row: msg.row, col: msg.col },
+        range: { startRow: msg.row, startCol: msg.col, endRow: msg.row, endCol: msg.col },
+        editing: false,
+      };
+      appState.notify();
+      grid.scrollToCell(msg.row, msg.col);
+      break;
+    }
     case 'forceViewMode': {
       appState.viewMode = msg.mode;
       root.dataset.viewMode = msg.mode;

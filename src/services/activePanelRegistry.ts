@@ -15,7 +15,6 @@ export interface ActiveWorkbookAccessor {
 class ActivePanelRegistry {
   private active: ((m: HostToWebviewMessage) => void) | undefined;
   private accessor: ActiveWorkbookAccessor | undefined;
-  /** Last SheetLab panel that had focus (survives Command Palette focus steal). */
   private lastPost: ((m: HostToWebviewMessage) => void) | undefined;
   private lastAccessor: ActiveWorkbookAccessor | undefined;
 
@@ -44,6 +43,14 @@ class ActivePanelRegistry {
     return true;
   }
 
+  /** Navigate grid to a cell (used by Go to Symbol / Peek). */
+  navigateToCell(sheetName: string, row: number, col: number): boolean {
+    const post = this.active ?? this.lastPost;
+    if (!post) return false;
+    post({ type: 'forceNavigate', sheetName, row, col } as HostToWebviewMessage);
+    return true;
+  }
+
   getActiveWorkbook(): Workbook | undefined {
     return (this.accessor ?? this.lastAccessor)?.getWorkbook();
   }
@@ -59,6 +66,17 @@ class ActivePanelRegistry {
   }
 }
 
+function toA1Local(row: number, col: number): string {
+  let n = col + 1;
+  let s = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return `${s}${row + 1}`;
+}
+
 export const activePanelRegistry = new ActivePanelRegistry();
 
 export function trackPanelFocus(
@@ -66,7 +84,6 @@ export function trackPanelFocus(
   post: (m: HostToWebviewMessage) => void,
   accessor?: ActiveWorkbookAccessor,
 ): vscode.Disposable {
-  // Register immediately so commands work even before the next focus event.
   activePanelRegistry.setActive(post, accessor);
   const sub = panel.onDidChangeViewState((e) => {
     if (e.webviewPanel.active) {

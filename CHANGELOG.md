@@ -4,6 +4,17 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3]
+
+### Changed
+- Removed **Lint / Analyze / Trace** from the editor **title bar** (navbar) to free space — use toolbar or Command Palette instead
+
+### Added
+- **Go to Symbol** (`Ctrl+Shift+O`): sheets, tables, named ranges, sample formulas
+- **Peek Cell**: inspect value/formula with Open / Precedents / Dependents
+- **Semantic workbook snapshot** + self-diff (foundation for Git-aware diff)
+- **Analyze Snapshot** command (stability check + profile summary)
+
 ## [0.2.2]
 
 ### Fixed

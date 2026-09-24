@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM/ODS inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -40,7 +40,10 @@
     "onCommand:sheetlab.tracePrecedents",
     "onCommand:sheetlab.traceDependents",
     "onCommand:sheetlab.explainCell",
-    "onCommand:sheetlab.showProblems"
+    "onCommand:sheetlab.showProblems",
+    "onCommand:sheetlab.goToSymbol",
+    "onCommand:sheetlab.peekCell",
+    "onCommand:sheetlab.compareSnapshots"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -230,6 +233,23 @@
         "command": "sheetlab.showProblems",
         "title": "Show Problems",
         "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.goToSymbol",
+        "title": "Go to Symbol",
+        "category": "SheetLab",
+        "icon": "$(symbol-class)"
+      },
+      {
+        "command": "sheetlab.peekCell",
+        "title": "Peek Cell",
+        "category": "SheetLab",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "sheetlab.compareSnapshots",
+        "title": "Analyze Snapshot",
+        "category": "SheetLab"
       }
     ],
     "menus": {
@@ -253,21 +273,6 @@
           "command": "sheetlab.exportWorkbook",
           "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
           "group": "navigation@5"
-        },
-        {
-          "command": "sheetlab.runLinter",
-          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
-          "group": "navigation@10"
-        },
-        {
-          "command": "sheetlab.analyzeWorkbook",
-          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
-          "group": "navigation@11"
-        },
-        {
-          "command": "sheetlab.tracePrecedents",
-          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
-          "group": "navigation@12"
         }
       ],
       "explorer/context": [
@@ -484,6 +489,12 @@
         "command": "sheetlab.analyzeWorkbook",
         "key": "ctrl+shift+'",
         "mac": "cmd+shift+'",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.goToSymbol",
+        "key": "ctrl+shift+o",
+        "mac": "cmd+shift+o",
         "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
       }
     ]

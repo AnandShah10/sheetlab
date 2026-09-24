@@ -13,6 +13,7 @@ import {
   registerSheetJsExports,
 } from './commands/export';
 import { registerUiCommands } from './commands/uiCommands';
+import { registerAnalysisCommands } from './commands/analysisCommands';
 import { activePanelRegistry } from './services/activePanelRegistry';
 
 /**
@@ -51,6 +52,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   try {
     push(...registerUiCommands(context));
+    push(...registerAnalysisCommands(context));
   } catch (err) {
     console.error('[SheetLab] Failed to register UI commands', err);
     void vscode.window.showErrorMessage(
