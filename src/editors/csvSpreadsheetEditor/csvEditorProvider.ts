@@ -77,6 +77,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
           message: 'This CSV changed (edited as text, or modified outside VS Code). The spreadsheet view has been refreshed.',
         });
         resyncActiveSheet();
+        post({ type: 'textContent', text: sync.getDocumentText() });
       }
     });
 
@@ -104,6 +105,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         tables: sheet.tables ?? [],
         freezePane: sheet.freezePane,
       });
+      post({ type: 'textContent', text: sync.getDocumentText() });
       const { truncated, droppedRows } = sync.getTruncationInfo();
       if (truncated) {
         post({
@@ -145,10 +147,11 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         post({
           type: 'init',
           settings,
+          textContent: session.sync.getDocumentText(),
           workbook: {
             meta: {
               sourceKind: sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv',
-              sourcePath: '',
+              sourcePath: documentUri(session),
               sheetOrder: [sheet.name],
             } as unknown as Workbook['meta'],
             sheetOrder: [sheet.name],
@@ -160,6 +163,20 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
             },
           },
         });
+        return;
+      }
+
+      case 'setViewMode': {
+        // View mode is webview-local; acknowledge nothing required.
+        return;
+      }
+
+      case 'applyTextContent': {
+        await sync.applyRawText(msg.text);
+        resyncActiveSheet();
+        post({ type: 'textContent', text: sync.getDocumentText() });
+        post({ type: 'dirtyChanged', dirty: sync.isDirty() });
+        pushTextContent(session, post);
         return;
       }
 
@@ -184,6 +201,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         post({ type: 'applyEdit', edit: { sheetName: next.name, row: msg.row, col: msg.col, cell } });
         post({ type: 'undoRedoState', canUndo: undoStack.canUndo(), canRedo: undoStack.canRedo() });
         post({ type: 'dirtyChanged', dirty: sync.isDirty() });
+        pushTextContent(session, post);
         return;
       }
 
@@ -433,4 +451,14 @@ function sliceRows(rows: Worksheet['rows'], start: number, end: number): Workshe
 
 function clone(sheet: Worksheet): Worksheet {
   return JSON.parse(JSON.stringify(sheet));
+}
+
+
+function documentUri(session: CsvSession): string {
+  return session.sync.getSourcePath();
+}
+
+/** After grid mutations, keep the text pane in sync with the TextDocument. */
+function pushTextContent(session: CsvSession, post: (m: import('../../types/workbook').HostToWebviewMessage) => void): void {
+  post({ type: 'textContent', text: session.sync.getDocumentText() });
 }

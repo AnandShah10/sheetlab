@@ -607,3 +607,92 @@ body {
 .vscode-high-contrast .sheetlab-cell-active {
   outline-width: 3px;
 }
+
+
+/* ---------------- CSV/TSV side-by-side text + grid ---------------- */
+.sheetlab-main-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+}
+
+.sheetlab-text-preview {
+  display: none;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  background: var(--vscode-editor-background);
+}
+
+.sheetlab-app[data-view-mode="split"] .sheetlab-text-preview {
+  display: flex;
+  flex: 0 0 42%;
+  max-width: 55%;
+}
+
+.sheetlab-app[data-view-mode="text"] .sheetlab-text-preview {
+  display: flex;
+  flex: 1;
+}
+
+.sheetlab-app[data-view-mode="text"] .sheetlab-grid-container,
+.sheetlab-app[data-view-mode="text"] .sheetlab-bars-row {
+  display: none !important;
+}
+
+.sheetlab-app[data-view-mode="spreadsheet"] .sheetlab-text-preview {
+  display: none !important;
+}
+
+.sheetlab-text-preview-header {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
+
+.sheetlab-text-preview-area {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 8px 10px;
+  font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
+  font-size: var(--vscode-editor-font-size, 12px);
+  line-height: 1.45;
+  color: var(--vscode-editor-foreground, var(--vscode-foreground));
+  background: var(--vscode-editor-background);
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+
+.sheetlab-main-split .sheetlab-grid-container {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sheetlab-view-mode-group {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.sheetlab-view-mode-btn {
+  font-size: 11px !important;
+  padding: 2px 8px !important;
+}
+
+.sheetlab-view-mode-btn.sheetlab-view-mode-active {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+}

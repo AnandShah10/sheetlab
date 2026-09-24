@@ -12,6 +12,7 @@ export interface ToolbarCallbacks {
   onFreezePanes: () => void;
   onUnfreezePanes?: () => void;
   onExport?: () => void;
+  onSetViewMode?: (mode: 'spreadsheet' | 'text' | 'split') => void;
   /** Called after any format/action is applied, so the caller can scroll the affected cell into view -- important since the active cell is very often scrolled off-screen when a toolbar button is clicked. */
   onActionApplied?: () => void;
 }
@@ -76,7 +77,37 @@ export class Toolbar {
     this.container.appendChild(group(numberFormatSelect, customFormatGroup));
     this.container.appendChild(group(freezeBtn, unfreezeBtn));
 
+    // CSV/TSV view mode toggles (hidden for Excel)
+    const viewGroup = this.viewModeGroup();
+    viewGroup.dataset.role = 'view-mode';
+    this.container.appendChild(viewGroup);
+
     this.syncButtonStates();
+  }
+
+  private viewModeGroup(): HTMLElement {
+    const g = document.createElement('div');
+    g.className = 'sheetlab-toolbar-group sheetlab-view-mode-group';
+    const modes: Array<['spreadsheet' | 'text' | 'split', string]> = [
+      ['spreadsheet', 'Grid'],
+      ['split', 'Split'],
+      ['text', 'Text'],
+    ];
+    for (const [mode, label] of modes) {
+      const btn = document.createElement('button');
+      btn.className = 'sheetlab-toolbar-btn sheetlab-view-mode-btn';
+      btn.textContent = label;
+      btn.title =
+        mode === 'split'
+          ? 'Side-by-side text + spreadsheet'
+          : mode === 'text'
+            ? 'Source text only'
+            : 'Spreadsheet only';
+      btn.dataset.mode = mode;
+      btn.addEventListener('click', () => this.callbacks.onSetViewMode?.(mode));
+      g.appendChild(btn);
+    }
+    return g;
   }
 
   private button(label: string, iconClass: string, onClick: () => void): HTMLButtonElement {
@@ -100,6 +131,16 @@ export class Toolbar {
     this.undoBtn.disabled = !appState.canUndo;
     this.redoBtn.disabled = !appState.canRedo;
     this.dirtyIndicator.style.visibility = appState.dirty ? 'visible' : 'hidden';
+
+    const isCsv = appState.meta?.sourceKind === 'csv' || appState.meta?.sourceKind === 'tsv';
+    const viewGroup = this.container.querySelector('[data-role="view-mode"]') as HTMLElement | null;
+    if (viewGroup) {
+      viewGroup.style.display = isCsv ? 'inline-flex' : 'none';
+      viewGroup.querySelectorAll('.sheetlab-view-mode-btn').forEach((el) => {
+        const btn = el as HTMLButtonElement;
+        btn.classList.toggle('sheetlab-view-mode-active', btn.dataset.mode === appState.viewMode);
+      });
+    }
   }
 
   private toggleFormat(key: 'bold' | 'italic' | 'underline'): void {

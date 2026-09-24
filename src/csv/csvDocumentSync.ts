@@ -96,6 +96,39 @@ export class CsvDocumentSync implements vscode.Disposable {
     return this.document.isDirty;
   }
 
+  getDocumentText(): string {
+    return this.document.getText();
+  }
+
+  getSourcePath(): string {
+    return this.document.uri.fsPath;
+  }
+
+  /**
+   * Replace the entire document text (from the side-by-side text pane) and
+   * re-parse into the in-memory worksheet.
+   */
+  async applyRawText(text: string): Promise<boolean> {
+    const fullRange = new vscode.Range(
+      this.document.positionAt(0),
+      this.document.positionAt(this.document.getText().length),
+    );
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(this.document.uri, fullRange, text);
+
+    this.applyingOwnEdit = true;
+    try {
+      const applied = await vscode.workspace.applyEdit(edit);
+      if (applied) {
+        this.reparse();
+        this.changeEmitter.fire({ external: false });
+      }
+      return applied;
+    } finally {
+      this.applyingOwnEdit = false;
+    }
+  }
+
   /**
    * Apply a full-worksheet rewrite (used for cell edits, paste, sort,
    * filter-apply-as-edit, and data cleaning) as a single WorkspaceEdit so it

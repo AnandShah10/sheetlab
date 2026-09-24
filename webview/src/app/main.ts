@@ -11,6 +11,7 @@ import { QueryPanel } from '../query/queryPanel';
 import { DataCleaningPanel } from '../dataCleaning/dataCleaningPanel';
 import { FilterPopup } from '../contextMenu/filterPopup';
 import { parseA1OrRange } from './cellRef';
+import { TextPreview } from '../textPreview/textPreview';
 
 const root = document.getElementById('sheetlab-root')!;
 root.innerHTML = '';
@@ -21,6 +22,8 @@ const barsRow = div('sheetlab-bars-row');
 const nameBoxEl = div('sheetlab-name-box-container');
 const formulaBarEl = div('sheetlab-formula-bar-container');
 const gridEl = div('sheetlab-grid-container');
+const textPreviewEl = div('sheetlab-text-preview-container');
+const mainSplitEl = div('sheetlab-main-split');
 const tabsEl = div('sheetlab-tabs-container');
 const statusBarEl = div('sheetlab-status-bar-container');
 
@@ -32,9 +35,12 @@ const filterPopupEl = div('sheetlab-filter-popup-container');
 barsRow.appendChild(nameBoxEl);
 barsRow.appendChild(formulaBarEl);
 
+mainSplitEl.appendChild(textPreviewEl);
+mainSplitEl.appendChild(gridEl);
+
 root.appendChild(toolbarEl);
 root.appendChild(barsRow);
-root.appendChild(gridEl);
+root.appendChild(mainSplitEl);
 root.appendChild(tabsEl);
 root.appendChild(statusBarEl);
 root.appendChild(searchPanelEl);
@@ -43,6 +49,7 @@ root.appendChild(cleanPanelEl);
 root.appendChild(filterPopupEl);
 
 const grid = new Grid(gridEl);
+const textPreview = new TextPreview(textPreviewEl);
 const formulaBar = new FormulaBar(formulaBarEl);
 const nameBox = new NameBox(nameBoxEl);
 const sheetTabs = new SheetTabs(tabsEl);
@@ -89,6 +96,14 @@ new Toolbar(toolbarEl, {
     // Host shows VS Code QuickPick — webview prompt() is blocked by sandbox.
     postToHost({ type: 'requestExport' });
   },
+  onSetViewMode: (mode) => {
+    appState.viewMode = mode;
+    root.dataset.viewMode = mode;
+    appState.notify();
+    postToHost({ type: 'setViewMode', mode });
+    // Grid needs a layout pass when leaving text-only mode
+    requestAnimationFrame(() => grid.reset());
+  },
 });
 
 nameBox.setOnNavigate((range) => {
@@ -129,6 +144,10 @@ document.addEventListener('keydown', (e) => {
 
 onHostMessage((msg) => {
   switch (msg.type) {
+    case 'textContent': {
+      textPreview.setTextFromHost(msg.text);
+      break;
+    }
     case 'navigateToRef': {
       const range = parseA1OrRange(msg.ref);
       if (range) {
@@ -144,6 +163,10 @@ onHostMessage((msg) => {
     }
     case 'init': {
       appState.initFromHost(msg.workbook, msg.settings);
+      if (msg.textContent != null) {
+        textPreview.setTextFromHost(msg.textContent);
+      }
+      root.dataset.viewMode = appState.viewMode;
       sheetTabs.render();
       grid.reset();
       break;

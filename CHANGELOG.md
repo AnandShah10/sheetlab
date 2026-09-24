@@ -4,6 +4,13 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6]
+
+### Added
+- **CSV/TSV side-by-side text + grid preview**: Split view shows source text on the left and spreadsheet on the right
+- Toolbar **Grid / Split / Text** toggles (CSV/TSV only); default for CSV/TSV is Split
+- Text pane is editable; changes apply back to the same VS Code TextDocument (stays in sync with grid edits and external text changes)
+
 ## [0.1.5]
 
 ### Fixed

@@ -142,7 +142,8 @@ export interface Workbook {
 
 /** Messages sent from the extension host to the webview. */
 export type HostToWebviewMessage =
-  | { type: 'init'; workbook: SerializedWorkbookInit; settings: GridSettings }
+  | { type: 'init'; workbook: SerializedWorkbookInit; settings: GridSettings; textContent?: string }
+  | { type: 'textContent'; text: string }
   | { type: 'sheetData'; sheetName: string; rows: Record<number, RowData>; rowRangeStart: number; rowRangeEnd: number }
   | { type: 'applyEdit'; edit: CellEditResult }
   | { type: 'undoRedoState'; canUndo: boolean; canRedo: boolean }
@@ -235,7 +236,9 @@ export type WebviewToHostMessage =
   | { type: 'promptDeleteSheet'; name: string }
   | { type: 'promptDuplicateSheet'; name: string }
   | { type: 'promptGoToCell' }
-  | { type: 'promptCreateTable'; sheetName: string; range: CellRange };
+  | { type: 'promptCreateTable'; sheetName: string; range: CellRange }
+  | { type: 'setViewMode'; mode: 'spreadsheet' | 'text' | 'split' }
+  | { type: 'applyTextContent'; text: string };
 
 export interface SerializedWorkbookInit {
   meta: WorkbookMeta;
@@ -254,6 +257,8 @@ export interface SerializedWorkbookInit {
   /** First chunk of rows for the initially active sheet so the grid can paint immediately. */
   firstSheet: { name: string; rows: Record<number, RowData>; rowRangeEnd: number };
 }
+
+export type ViewMode = 'spreadsheet' | 'text' | 'split';
 
 export interface GridSettings {
   theme: 'auto' | 'dark' | 'light' | 'high-contrast';

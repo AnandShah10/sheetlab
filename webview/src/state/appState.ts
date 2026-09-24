@@ -41,6 +41,11 @@ export class AppState {
   dirty = false;
   showFormulaBar = true;
   showGridlines = true;
+  /** CSV/TSV only: spreadsheet | text | side-by-side split. */
+  viewMode: 'spreadsheet' | 'text' | 'split' = 'spreadsheet';
+  /** Raw source text for CSV/TSV preview pane. */
+  textContent = '';
+
 
   private listeners: ListenerFn[] = [];
 
@@ -64,6 +69,12 @@ export class AppState {
     this.visibleRowFilter = { [init.firstSheet.name]: null };
     this.settings = settings;
     this.showGridlines = settings.showGridlines;
+    if (this.meta.sourceKind === 'csv' || this.meta.sourceKind === 'tsv') {
+      // Default to split so text + grid are both visible for CSV/TSV.
+      this.viewMode = 'split';
+    } else {
+      this.viewMode = 'spreadsheet';
+    }
     this.notify();
   }
 
