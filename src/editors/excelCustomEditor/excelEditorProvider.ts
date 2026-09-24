@@ -57,6 +57,8 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
   public readonly onDidChangeCustomDocument = this.onDidChangeCustomDocumentEmitter.event;
 
   private readonly dirtyDocuments = new Set<string>();
+  /** Strong refs so VS Code save can always resolve the open document. */
+  private readonly documents = new Map<string, ExcelDocument>();
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -73,11 +75,23 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     _openContext: vscode.CustomDocumentOpenContext,
     _token: vscode.CancellationToken,
   ): Promise<ExcelDocument> {
-    const doc = new ExcelDocument(uri);
+    const key = uri.toString();
+    // Reuse an existing document instance for the same URI when possible so
+    // VS Code's save path never loses the CustomDocument reference.
+    let doc = this.documents.get(key);
+    if (!doc) {
+      doc = new ExcelDocument(uri);
+      this.documents.set(key, doc);
+      doc.onDidDispose(() => {
+        this.documents.delete(key);
+        this.dirtyDocuments.delete(key);
+      });
+    }
     await this.loadWorkbook(doc);
     const stat = await vscode.workspace.fs.stat(uri);
+    doc.conflictWatcher?.dispose();
     doc.conflictWatcher = new ExcelConflictWatcher(uri, stat.mtime);
-    doc.conflictWatcher.onExternalChange(() => this.handleExternalChange(doc));
+    doc.conflictWatcher.onExternalChange(() => this.handleExternalChange(doc!));
     return doc;
   }
 
@@ -745,24 +759,40 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
   }
 
   private markDirty(doc: ExcelDocument): void {
-    this.dirtyDocuments.add(doc.uri.toString());
+    const key = doc.uri.toString();
+    this.documents.set(key, doc);
+    this.dirtyDocuments.add(key);
+    // Content-change event (we manage undo inside the webview/host, not via VS Code edits).
     this.onDidChangeCustomDocumentEmitter.fire({ document: doc });
   }
 
   async saveCustomDocument(doc: ExcelDocument): Promise<void> {
-    doc.conflictWatcher?.notifyOwnWritePending();
-    const ok = await saveExcelWorkbook(doc.workbook, doc.uri);
-    if (!ok) {
-      throw new Error('SheetLab could not save the workbook. See the notification for details.');
+    // Re-bind in case VS Code handed us a stale wrapper after extension host restart.
+    const key = doc.uri.toString();
+    const live = this.documents.get(key) ?? doc;
+    this.documents.set(key, live);
+    if (!live.workbook) {
+      await this.loadWorkbook(live);
     }
-    this.dirtyDocuments.delete(doc.uri.toString());
-    await doc.conflictWatcher?.refreshKnownMtime();
+    live.conflictWatcher?.notifyOwnWritePending();
+    const ok = await saveExcelWorkbook(live.workbook, live.uri);
+    if (!ok) {
+      // Rejection keeps the tab dirty; message already shown by saveExcelWorkbook.
+      return Promise.reject(new Error('SheetLab save was cancelled or failed. The file was not modified.'));
+    }
+    this.dirtyDocuments.delete(key);
+    await live.conflictWatcher?.refreshKnownMtime();
   }
 
   async saveCustomDocumentAs(doc: ExcelDocument, destination: vscode.Uri): Promise<void> {
-    const ok = await saveExcelWorkbook(doc.workbook, destination);
+    const key = doc.uri.toString();
+    const live = this.documents.get(key) ?? doc;
+    if (!live.workbook) {
+      await this.loadWorkbook(live);
+    }
+    const ok = await saveExcelWorkbook(live.workbook, destination);
     if (!ok) {
-      throw new Error('SheetLab could not save the workbook. See the notification for details.');
+      return Promise.reject(new Error('SheetLab save was cancelled or failed. The file was not modified.'));
     }
   }
 

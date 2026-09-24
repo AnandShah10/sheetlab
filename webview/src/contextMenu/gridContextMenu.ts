@@ -2,6 +2,7 @@ import { postToHost } from '../app/vscodeApi';
 import { appState } from '../state/appState';
 import { cellsToClipboardMatrix, matrixToClipboardText, clipboardTextToMatrix } from '../grid/clipboard';
 import { findTableAtLocal } from '../grid/tableHitTest';
+import { positionMenu } from '../app/menuPosition';
 
 type MenuItem = [string, () => void];
 
@@ -74,8 +75,6 @@ export class GridContextMenu {
 
     const menu = document.createElement('div');
     menu.className = 'sheetlab-context-menu';
-    menu.style.left = `${x}px`;
-    menu.style.top = `${y}px`;
 
     items.forEach(([label, action]) => {
       if (label === '—') {
@@ -96,11 +95,14 @@ export class GridContextMenu {
     });
 
     document.body.appendChild(menu);
-    const closeOnce = () => {
+    positionMenu(menu, x, y, { preferUp: y > window.innerHeight * 0.55 });
+
+    const closeOnce = (ev: MouseEvent) => {
+      if (menu.contains(ev.target as Node)) return;
       menu.remove();
-      document.removeEventListener('click', closeOnce);
+      document.removeEventListener('mousedown', closeOnce, true);
     };
-    setTimeout(() => document.addEventListener('click', closeOnce), 0);
+    setTimeout(() => document.addEventListener('mousedown', closeOnce, true), 0);
   }
 
   private sortByColumn(col: number, direction: 'asc' | 'desc'): void {

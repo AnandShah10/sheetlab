@@ -1,5 +1,6 @@
 import { appState } from '../state/appState';
 import { postToHost } from '../app/vscodeApi';
+import { positionMenu } from '../app/menuPosition';
 
 export class SheetTabs {
   private container: HTMLElement;
@@ -61,7 +62,7 @@ export class SheetTabs {
       // Visible chevron so sheet options are always discoverable (not only via right-click).
       const menuBtn = document.createElement('button');
       menuBtn.className = 'sheetlab-sheet-tab-menu';
-      menuBtn.textContent = '▾';
+      menuBtn.textContent = '▴';
       menuBtn.title = `Options for ${name}`;
       menuBtn.style.border = 'none';
       menuBtn.style.background = 'transparent';
@@ -70,7 +71,8 @@ export class SheetTabs {
       menuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const rect = menuBtn.getBoundingClientRect();
-        this.showContextMenu(rect.left, rect.bottom + 2, name);
+        // Open ABOVE the tab so Rename / Duplicate / Delete are fully visible
+        this.showContextMenu(rect.left, rect.top - 2, name);
       });
 
       wrap.appendChild(tab);
@@ -98,16 +100,15 @@ export class SheetTabs {
 
     const menu = document.createElement('div');
     menu.className = 'sheetlab-context-menu';
-    menu.style.position = 'fixed';
-    menu.style.left = `${x}px`;
-    menu.style.top = `${y}px`;
-    menu.style.zIndex = '10000';
+    menu.setAttribute('role', 'menu');
 
     const addItem = (label: string, action: () => void) => {
       const item = document.createElement('div');
       item.className = 'sheetlab-context-menu-item';
+      item.setAttribute('role', 'menuitem');
       item.textContent = label;
-      item.addEventListener('click', () => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
         action();
         menu.remove();
       });
@@ -121,11 +122,14 @@ export class SheetTabs {
     }
 
     document.body.appendChild(menu);
+    // Sheet tabs live at the bottom — always prefer opening upward
+    positionMenu(menu, x, y, { preferUp: true });
 
-    const closeOnce = () => {
+    const closeOnce = (ev: MouseEvent) => {
+      if (menu.contains(ev.target as Node)) return;
       menu.remove();
-      document.removeEventListener('click', closeOnce);
+      document.removeEventListener('mousedown', closeOnce, true);
     };
-    setTimeout(() => document.addEventListener('click', closeOnce), 0);
+    setTimeout(() => document.addEventListener('mousedown', closeOnce, true), 0);
   }
 }

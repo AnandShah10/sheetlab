@@ -21,12 +21,16 @@ body {
 .sheetlab-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 4px 8px;
   background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
   border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
   flex-shrink: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  max-height: 72px;
+  flex-wrap: nowrap;
+  overscroll-behavior-x: contain;
 }
 
 .sheetlab-toolbar-group {
@@ -411,11 +415,13 @@ body {
 /* ---------------- Panels (search/query/clean/filter) ---------------- */
 .sheetlab-panel {
   position: absolute;
-  top: 60px;
-  right: 12px;
-  width: 380px;
-  max-height: 70vh;
+  top: 48px;
+  right: 8px;
+  width: min(380px, calc(100vw - 16px));
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
   border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
@@ -560,8 +566,13 @@ body {
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
   border-radius: 4px;
   padding: 4px 0;
-  z-index: 100;
-  min-width: 120px;
+  z-index: 10000;
+  min-width: 160px;
+  max-width: min(360px, calc(100vw - 16px));
+  max-height: min(320px, calc(100vh - 16px));
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
 .sheetlab-context-menu-item {

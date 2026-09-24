@@ -4,6 +4,14 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5]
+
+### Fixed
+- **Save / "No custom document found"**: keep a strong document registry so Ctrl+S always resolves the open workbook; safer save path with live document rebinding
+- **Sheet tab menu clipped at bottom**: menu opens **upward** with viewport clamping so Rename / Duplicate / Delete are fully visible
+- **Context menus & command popups**: max-height + `overflow-y: auto` so long option lists scroll instead of being cut off
+- Toolbar and side panels use contained scrolling within the webview
+
 ## [0.1.4]
 
 ### Fixed
