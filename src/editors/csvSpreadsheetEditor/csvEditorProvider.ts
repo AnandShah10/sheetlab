@@ -18,6 +18,7 @@ import { createTable, removeTable } from '../../data/tables';
 import { searchWorkbook } from '../../services/searchService';
 import { runQuery } from '../../query/queryEngine';
 import { getWebviewHtml } from '../shared/webviewHtml';
+import { transformationRecorder } from '../../pipelines/recorder';
 import { Workbook, Worksheet } from '../../types/workbook';
 import { trackPanelFocus } from '../../services/activePanelRegistry';
 
@@ -303,6 +304,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         undoStack.push({ sheetName: cleaned.name, before, after: clone(cleaned), label: 'Clean data' });
         await sync.commitWorksheet(cleaned);
         resyncActiveSheet();
+        transformationRecorder.record(msg.sheetName, msg.range, msg.operation);
         return;
       }
 

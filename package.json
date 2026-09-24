@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM/ODS inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -43,7 +43,15 @@
     "onCommand:sheetlab.showProblems",
     "onCommand:sheetlab.goToSymbol",
     "onCommand:sheetlab.peekCell",
-    "onCommand:sheetlab.compareSnapshots"
+    "onCommand:sheetlab.compareSnapshots",
+    "onCommand:sheetlab.startRecordingTransformations",
+    "onCommand:sheetlab.stopRecordingTransformations",
+    "onCommand:sheetlab.viewPipeline",
+    "onCommand:sheetlab.runPipeline",
+    "onCommand:sheetlab.saveQuery",
+    "onCommand:sheetlab.runSavedQuery",
+    "onCommand:sheetlab.runDataValidation",
+    "onCommand:sheetlab.compareWithHead"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -250,6 +258,46 @@
         "command": "sheetlab.compareSnapshots",
         "title": "Analyze Snapshot",
         "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.startRecordingTransformations",
+        "title": "Start Recording Transformations",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.stopRecordingTransformations",
+        "title": "Stop Recording Transformations",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.viewPipeline",
+        "title": "View Transformation Pipeline",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.runPipeline",
+        "title": "Run Saved Pipeline",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.saveQuery",
+        "title": "Save Query",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.runSavedQuery",
+        "title": "Run Saved Query",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.runDataValidation",
+        "title": "Run Data Validation",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.compareWithHead",
+        "title": "Compare Workbook with HEAD",
+        "category": "SheetLab"
       }
     ],
     "menus": {
@@ -409,6 +457,11 @@
           "type": "number",
           "default": 12,
           "description": "Max depth for Trace Precedents/Dependents."
+        },
+        "sheetlab.transformations.recording": {
+          "type": "boolean",
+          "default": false,
+          "description": "Informational: use Start/Stop Recording commands to capture clean-data ops into .sheetlab/pipelines/."
         }
       }
     },

@@ -4,6 +4,18 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0]
+
+### Added — Reproducibility (Stage 3)
+- **Transformation recording**: Start/Stop Recording captures Clean Data ops into structured pipelines
+- Pipelines saved under `.sheetlab/pipelines/*.json` (View / Run Saved Pipeline)
+- **Saved queries** under `.sheetlab/queries/*.json` (Save Query / Run Saved Query)
+- **Data validation** rules (`required`, `unique`, `type`, `regex`, `range`, `enum`); optional `.sheetlab/rules/default.json`
+- **Compare Workbook with HEAD**: semantic cell/formula diff vs Git HEAD (local `git show`, no network)
+
+### Note
+- Analysis actions remain on the **toolbar** / Command Palette (not editor title bar)
+
 ## [0.2.3]
 
 ### Changed

@@ -27,6 +27,7 @@ import { runQuery } from '../../query/queryEngine';
 import { getWebviewHtml } from '../shared/webviewHtml';
 import { FormulaEngine } from '../../formula/formulaEngine';
 import { AnalysisService } from '../../services/analysisService';
+import { transformationRecorder } from '../../pipelines/recorder';
 import { trackPanelFocus } from '../../services/activePanelRegistry';
 
 /** One instance per open .xlsx/.xls/.xlsm document — VS Code's CustomDocument contract. */
@@ -312,6 +313,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         const cleaned = applyCleanup(sheet, msg.range as CellRange, msg.operation);
         doc.workbook.sheets[msg.sheetName] = cleaned;
         doc.undoStack.push({ sheetName: msg.sheetName, before, after: structuredCloneSheet(cleaned), label: 'Clean data' });
+        transformationRecorder.record(msg.sheetName, msg.range as CellRange, msg.operation);
         this.markDirty(doc);
         this.resyncSheet(doc, msg.sheetName, post);
         return;
