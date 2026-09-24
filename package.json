@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab — Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM/ODS inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -51,7 +51,8 @@
     "onCommand:sheetlab.saveQuery",
     "onCommand:sheetlab.runSavedQuery",
     "onCommand:sheetlab.runDataValidation",
-    "onCommand:sheetlab.compareWithHead"
+    "onCommand:sheetlab.compareWithHead",
+    "onCommand:sheetlab.openTools"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -298,6 +299,12 @@
         "command": "sheetlab.compareWithHead",
         "title": "Compare Workbook with HEAD",
         "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.openTools",
+        "title": "Open Tools Panel",
+        "category": "SheetLab",
+        "icon": "$(tools)"
       }
     ],
     "menus": {
@@ -319,6 +326,11 @@
         },
         {
           "command": "sheetlab.exportWorkbook",
+          "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
+          "group": "navigation@5"
+        },
+        {
+          "command": "sheetlab.openTools",
           "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor",
           "group": "navigation@5"
         }
@@ -548,6 +560,12 @@
         "command": "sheetlab.goToSymbol",
         "key": "ctrl+shift+o",
         "mac": "cmd+shift+o",
+        "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
+      },
+      {
+        "command": "sheetlab.openTools",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t",
         "when": "activeCustomEditorId == sheetlab.excelEditor || activeCustomEditorId == sheetlab.csvSpreadsheetEditor"
       }
     ]

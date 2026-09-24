@@ -328,6 +328,11 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         return;
       }
 
+      case 'runHostCommand': {
+        void vscode.commands.executeCommand(msg.command);
+        return;
+      }
+
       case 'requestExport': {
         await vscode.commands.executeCommand('sheetlab.exportWorkbook');
         return;

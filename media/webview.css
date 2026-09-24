@@ -696,3 +696,34 @@ body {
   background: var(--vscode-button-background, #0e639c);
   color: var(--vscode-button-foreground, #fff);
 }
+
+
+/* ---- SheetLab Tools side panel ---- */
+.sheetlab-analysis-panel-container,
+.sheetlab-tools-panel {
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  color: var(--vscode-foreground);
+  border-left: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.3));
+  z-index: 20;
+}
+.sheetlab-tools-panel .sheetlab-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.25));
+}
+.sheetlab-tools-tab {
+  cursor: pointer;
+}
+.sheetlab-tools-panel .sheetlab-btn-secondary {
+  background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.2));
+  color: var(--vscode-button-secondaryForeground, inherit);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.sheetlab-tools-panel .sheetlab-btn-secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(127,127,127,0.35));
+}

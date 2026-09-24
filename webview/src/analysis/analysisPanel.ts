@@ -35,30 +35,43 @@ interface Profile {
   notes: string[];
 }
 
+type SectionId = 'analyze' | 'navigate' | 'pipelines' | 'queries' | 'quality' | 'git';
+
 /**
- * Side panel for dependency traces, lint problems, and workbook profile.
+ * Unified SheetLab Tools side panel — analysis, navigation, pipelines,
+ * queries, validation, and Git — so users are not forced through the palette.
  */
 export class AnalysisPanel {
   private container: HTMLElement;
   private body!: HTMLDivElement;
+  private sectionHost!: HTMLDivElement;
+  private activeSection: SectionId = 'analyze';
   private onNavigate: ((sheet: string, row: number, col: number) => void) | undefined;
+  private recordingHint = false;
 
   constructor(container: HTMLElement) {
     this.container = container;
-    this.container.classList.add('sheetlab-panel', 'sheetlab-analysis-panel');
+    this.container.classList.add('sheetlab-panel', 'sheetlab-analysis-panel', 'sheetlab-tools-panel');
     this.container.style.display = 'none';
+    this.container.style.flexDirection = 'column';
+    this.container.style.minWidth = '280px';
+    this.container.style.maxWidth = '360px';
+    this.container.style.width = '320px';
     this.build();
     onHostMessage((msg) => {
       if (msg.type === 'analysisTraceResult') {
         this.open();
+        this.setSection('analyze');
         this.renderTrace(msg.direction, msg.tree as TraceNode, msg.origin);
       }
       if (msg.type === 'analysisDiagnostics') {
         this.open();
+        this.setSection('analyze');
         this.renderDiagnostics(msg.diagnostics as Diagnostic[]);
       }
       if (msg.type === 'analysisProfile') {
         this.open();
+        this.setSection('analyze');
         this.renderProfile(msg.profile as Profile);
       }
     });
@@ -81,11 +94,11 @@ export class AnalysisPanel {
   }
 
   requestPrecedents(): void {
-    // Snapshot selection immediately — toolbar/commands must not rely on context menu focus.
     const sheetName = appState.activeSheet;
     const { row, col } = appState.selection.active;
     postToHost({ type: 'tracePrecedents', sheetName, row, col });
     this.open();
+    this.setSection('analyze');
   }
 
   requestDependents(): void {
@@ -93,52 +106,76 @@ export class AnalysisPanel {
     const { row, col } = appState.selection.active;
     postToHost({ type: 'traceDependents', sheetName, row, col });
     this.open();
+    this.setSection('analyze');
   }
 
   requestLinter(): void {
     postToHost({ type: 'runLinter' });
     this.open();
+    this.setSection('analyze');
   }
 
   requestProfile(): void {
     postToHost({ type: 'runProfile' });
     this.open();
+    this.setSection('analyze');
   }
 
   requestExplain(): void {
+    const sheetName = appState.activeSheet;
     const { row, col } = appState.selection.active;
-    postToHost({ type: 'explainCell', sheetName: appState.activeSheet, row, col });
+    postToHost({ type: 'explainCell', sheetName, row, col });
     this.open();
+    this.setSection('analyze');
+  }
+
+  private host(command: string): void {
+    postToHost({ type: 'runHostCommand', command });
   }
 
   private build(): void {
     const header = document.createElement('div');
     header.className = 'sheetlab-panel-header';
-    header.innerHTML = '<span>Analysis</span>';
+    header.innerHTML = '<span>SheetLab Tools</span>';
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
     closeBtn.className = 'sheetlab-panel-close';
+    closeBtn.title = 'Close';
     closeBtn.addEventListener('click', () => this.close());
     header.appendChild(closeBtn);
 
-    const actions = document.createElement('div');
-    actions.className = 'sheetlab-search-actions';
-    actions.style.display = 'flex';
-    actions.style.flexWrap = 'wrap';
-    actions.style.gap = '4px';
-    for (const [label, fn] of [
-      ['Precedents', () => this.requestPrecedents()],
-      ['Dependents', () => this.requestDependents()],
-      ['Lint', () => this.requestLinter()],
-      ['Profile', () => this.requestProfile()],
-      ['Explain', () => this.requestExplain()],
-    ] as Array<[string, () => void]>) {
+    const tabs = document.createElement('div');
+    tabs.className = 'sheetlab-tools-tabs';
+    tabs.style.display = 'flex';
+    tabs.style.flexWrap = 'wrap';
+    tabs.style.gap = '2px';
+    tabs.style.padding = '4px 6px';
+    tabs.style.borderBottom = '1px solid var(--vscode-widget-border, rgba(128,128,128,0.25))';
+
+    const sections: Array<[SectionId, string]> = [
+      ['analyze', 'Analyze'],
+      ['navigate', 'Navigate'],
+      ['pipelines', 'Pipelines'],
+      ['queries', 'Queries'],
+      ['quality', 'Quality'],
+      ['git', 'Git'],
+    ];
+    for (const [id, label] of sections) {
       const b = document.createElement('button');
-      b.className = 'sheetlab-btn-secondary';
+      b.type = 'button';
       b.textContent = label;
-      b.addEventListener('click', fn);
-      actions.appendChild(b);
+      b.dataset.section = id;
+      b.className = 'sheetlab-btn-secondary sheetlab-tools-tab';
+      b.style.fontSize = '11px';
+      b.style.padding = '3px 8px';
+      b.addEventListener('click', () => this.setSection(id));
+      tabs.appendChild(b);
     }
+
+    this.sectionHost = document.createElement('div');
+    this.sectionHost.style.padding = '8px';
+    this.sectionHost.style.borderBottom = '1px solid var(--vscode-widget-border, rgba(128,128,128,0.2))';
+    this.sectionHost.style.flexShrink = '0';
 
     this.body = document.createElement('div');
     this.body.className = 'sheetlab-analysis-body';
@@ -146,10 +183,87 @@ export class AnalysisPanel {
     this.body.style.flex = '1';
     this.body.style.minHeight = '0';
     this.body.style.fontSize = '12px';
+    this.body.style.padding = '8px';
+    this.body.innerHTML = '<div style="opacity:0.75">Run an action above. Results appear here.</div>';
 
     this.container.appendChild(header);
-    this.container.appendChild(actions);
+    this.container.appendChild(tabs);
+    this.container.appendChild(this.sectionHost);
     this.container.appendChild(this.body);
+
+    this.setSection('analyze');
+  }
+
+  private setSection(id: SectionId): void {
+    this.activeSection = id;
+    for (const btn of this.container.querySelectorAll<HTMLButtonElement>('.sheetlab-tools-tab')) {
+      const on = btn.dataset.section === id;
+      btn.style.fontWeight = on ? '600' : '400';
+      btn.style.outline = on ? '1px solid var(--vscode-focusBorder, #007fd4)' : 'none';
+    }
+    this.sectionHost.innerHTML = '';
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.flexDirection = 'column';
+    actions.style.gap = '6px';
+
+    const add = (label: string, title: string, fn: () => void) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sheetlab-btn-secondary';
+      b.textContent = label;
+      b.title = title;
+      b.style.textAlign = 'left';
+      b.style.padding = '6px 10px';
+      b.addEventListener('click', fn);
+      actions.appendChild(b);
+    };
+
+    if (id === 'analyze') {
+      add('Trace Precedents', 'Depends-on tree for the active cell', () => this.requestPrecedents());
+      add('Trace Dependents', 'Who depends on the active cell', () => this.requestDependents());
+      add('Explain Cell', 'Precedents + issues for the active cell', () => this.requestExplain());
+      add('Run Linter', 'Whole-workbook formula/structure checks', () => this.requestLinter());
+      add('Analyze Workbook', 'Profile sheets, formulas, cycles', () => this.requestProfile());
+    } else if (id === 'navigate') {
+      add('Go to Symbol…', 'Sheets, tables, named ranges, formulas', () => this.host('sheetlab.goToSymbol'));
+      add('Peek Cell…', 'Inspect a reference without hunting', () => this.host('sheetlab.peekCell'));
+      add('Go to Cell…', 'Jump to A1-style address', () => postToHost({ type: 'uiCommand', command: 'openGoToCell' }));
+    } else if (id === 'pipelines') {
+      add('Start Recording', 'Capture Clean Data ops into a pipeline', () => {
+        this.recordingHint = true;
+        this.host('sheetlab.startRecordingTransformations');
+        this.body.innerHTML =
+          '<div>Recording will start after you name the pipeline. Use <b>Clean Data</b> as usual; steps are captured. Then <b>Stop Recording</b>.</div>';
+      });
+      add('Stop Recording & Save', 'Write pipeline to .sheetlab/pipelines/', () => {
+        this.recordingHint = false;
+        this.host('sheetlab.stopRecordingTransformations');
+      });
+      add('View Pipeline…', 'Session or saved pipelines', () => this.host('sheetlab.viewPipeline'));
+      add('Run Saved Pipeline…', 'Replay steps on the open workbook', () => this.host('sheetlab.runPipeline'));
+      this.body.innerHTML = this.recordingHint
+        ? '<div>Recording mode — run Clean Data operations, then Stop Recording.</div>'
+        : '<div style="opacity:0.8">Pipelines store clean-data steps under <code>.sheetlab/pipelines/</code>.</div>';
+    } else if (id === 'queries') {
+      add('Open Query Panel', 'Write and run SheetLab SQL', () => postToHost({ type: 'uiCommand', command: 'openQuery' }));
+      add('Save Query…', 'Persist SQL under .sheetlab/queries/', () => this.host('sheetlab.saveQuery'));
+      add('Run Saved Query…', 'Pick a saved query and copy/open it', () => this.host('sheetlab.runSavedQuery'));
+      this.body.innerHTML =
+        '<div style="opacity:0.8">Saved queries live in <code>.sheetlab/queries/</code> (workspace folder required).</div>';
+    } else if (id === 'quality') {
+      add('Run Data Validation…', 'required / unique / type / regex rules', () => this.host('sheetlab.runDataValidation'));
+      add('Run Linter', 'Formula & structure diagnostics', () => this.requestLinter());
+      this.body.innerHTML =
+        '<div style="opacity:0.8">Optional rules file: <code>.sheetlab/rules/default.json</code></div>';
+    } else if (id === 'git') {
+      add('Compare with HEAD…', 'Semantic cell/formula diff vs Git HEAD', () => this.host('sheetlab.compareWithHead'));
+      add('Analyze Snapshot', 'Stability check + profile summary', () => this.host('sheetlab.compareSnapshots'));
+      this.body.innerHTML =
+        '<div style="opacity:0.8">Compares semantic cell values/formulas — not raw XLSX XML noise. Requires a Git workspace.</div>';
+    }
+
+    this.sectionHost.appendChild(actions);
   }
 
   private renderTrace(
@@ -185,7 +299,9 @@ export class AnalysisPanel {
     line.style.padding = '2px 4px';
     line.style.borderRadius = '3px';
     const badge = node.kind === 'cycle' ? ' ⟳' : node.kind === 'truncated' ? ' …' : '';
-    line.textContent = `${node.label}${badge}${node.formula ? `  ${node.formula}` : ''}${node.valuePreview != null ? ` = ${node.valuePreview}` : ''}`;
+    line.textContent = `${node.label}${badge}${node.formula ? `  ${node.formula}` : ''}${
+      node.valuePreview != null ? ` = ${node.valuePreview}` : ''
+    }`;
     line.title = node.label;
     line.addEventListener('click', () => {
       this.onNavigate?.(node.address.sheetName, node.address.row, node.address.col);

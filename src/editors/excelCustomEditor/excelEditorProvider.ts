@@ -559,6 +559,11 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         return;
       }
 
+      case 'runHostCommand': {
+        void vscode.commands.executeCommand(msg.command);
+        return;
+      }
+
       case 'requestExport': {
         await vscode.commands.executeCommand('sheetlab.exportWorkbook');
         return;

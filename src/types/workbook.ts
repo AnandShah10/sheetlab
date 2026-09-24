@@ -199,7 +199,8 @@ export type UiCommand =
   | 'traceDependents'
   | 'runLinter'
   | 'runProfile'
-  | 'explainCell';
+  | 'explainCell'
+  | 'openTools';
 
 /** Messages sent from the webview to the extension host. */
 export type WebviewToHostMessage =
@@ -252,7 +253,8 @@ export type WebviewToHostMessage =
   | { type: 'traceDependents'; sheetName: string; row: number; col: number }
   | { type: 'runLinter' }
   | { type: 'runProfile' }
-  | { type: 'explainCell'; sheetName: string; row: number; col: number };
+  | { type: 'explainCell'; sheetName: string; row: number; col: number }
+  | { type: 'runHostCommand'; command: string };
 
 export interface SerializedWorkbookInit {
   meta: WorkbookMeta;

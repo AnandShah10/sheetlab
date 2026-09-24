@@ -14,6 +14,8 @@ import { parseA1OrRange } from './cellRef';
 import { TextPreview } from '../textPreview/textPreview';
 import { AnalysisPanel } from '../analysis/analysisPanel';
 
+document.body.style.margin = '0';
+document.body.style.height = '100vh';
 const root = document.getElementById('sheetlab-root')!;
 root.innerHTML = '';
 root.classList.add('sheetlab-app');
@@ -50,6 +52,13 @@ root.appendChild(queryPanelEl);
 root.appendChild(cleanPanelEl);
 root.appendChild(filterPopupEl);
 root.appendChild(analysisPanelEl);
+analysisPanelEl.style.position = 'absolute';
+analysisPanelEl.style.top = '0';
+analysisPanelEl.style.right = '0';
+analysisPanelEl.style.bottom = '0';
+analysisPanelEl.style.zIndex = '30';
+analysisPanelEl.style.boxShadow = '-4px 0 12px rgba(0,0,0,0.15)';
+
 
 const grid = new Grid(gridEl);
 const textPreview = new TextPreview(textPreviewEl);
@@ -309,6 +318,7 @@ function handleUiCommand(command: string): void {
         pane: { row: 0, col: 0 },
       });
       break;
+    case 'openTools': analysisPanel.toggle(); break;
     case 'tracePrecedents': analysisPanel.requestPrecedents(); break;
     case 'traceDependents': analysisPanel.requestDependents(); break;
     case 'runLinter': analysisPanel.requestLinter(); break;

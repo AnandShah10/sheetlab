@@ -29,6 +29,7 @@ export function registerUiCommands(_context: vscode.ExtensionContext): vscode.Di
     ['sheetlab.analyzeWorkbook', 'runProfile'],
     ['sheetlab.explainCell', 'explainCell'],
     ['sheetlab.showProblems', 'runLinter'],
+    ['sheetlab.openTools', 'openTools'],
   ];
 
   return bindings.map(([commandId, uiCommand]) =>

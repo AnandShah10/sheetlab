@@ -83,17 +83,12 @@ export class Toolbar {
     this.container.appendChild(group(numberFormatSelect, customFormatGroup));
     this.container.appendChild(group(freezeBtn, unfreezeBtn));
 
-    // Analysis — always available; uses current selection without right-click
-    const analysisGroup = group(
-      this.button('Precedents', 'search', () => this.callbacks.onTracePrecedents?.()),
-      this.button('Dependents', 'search', () => this.callbacks.onTraceDependents?.()),
-      this.button('Lint', 'clean', () => this.callbacks.onRunLinter?.()),
-      this.button('Profile', 'query', () => this.callbacks.onAnalyzeWorkbook?.()),
-      this.button('Explain', 'search', () => this.callbacks.onExplainCell?.()),
-      this.button('Analysis', 'search', () => this.callbacks.onOpenAnalysis?.()),
+    // Tools side panel (analysis, pipelines, queries, quality, git)
+    const toolsGroup = group(
+      this.button('Tools', 'query', () => this.callbacks.onOpenAnalysis?.()),
     );
-    analysisGroup.dataset.role = 'analysis';
-    this.container.appendChild(analysisGroup);
+    toolsGroup.dataset.role = 'analysis';
+    this.container.appendChild(toolsGroup);
 
     // CSV/TSV view mode toggles (hidden for Excel)
     const viewGroup = this.viewModeGroup();
