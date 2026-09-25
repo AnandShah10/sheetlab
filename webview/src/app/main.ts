@@ -42,22 +42,19 @@ barsRow.appendChild(formulaBarEl);
 mainSplitEl.appendChild(textPreviewEl);
 mainSplitEl.appendChild(gridEl);
 
+const workRow = div('sheetlab-work-row');
+workRow.appendChild(mainSplitEl);
+workRow.appendChild(analysisPanelEl);
+
 root.appendChild(toolbarEl);
 root.appendChild(barsRow);
-root.appendChild(mainSplitEl);
+root.appendChild(workRow);
 root.appendChild(tabsEl);
 root.appendChild(statusBarEl);
 root.appendChild(searchPanelEl);
 root.appendChild(queryPanelEl);
 root.appendChild(cleanPanelEl);
 root.appendChild(filterPopupEl);
-root.appendChild(analysisPanelEl);
-analysisPanelEl.style.position = 'absolute';
-analysisPanelEl.style.top = '0';
-analysisPanelEl.style.right = '0';
-analysisPanelEl.style.bottom = '0';
-analysisPanelEl.style.zIndex = '30';
-analysisPanelEl.style.boxShadow = '-4px 0 12px rgba(0,0,0,0.15)';
 
 
 const grid = new Grid(gridEl);

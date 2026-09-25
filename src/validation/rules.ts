@@ -76,7 +76,7 @@ function applyRule(
   const seen = new Set<string>();
   const re = rule.pattern ? new RegExp(rule.pattern) : null;
 
-  for (const [rowStr, row] of Object.entries(sheet.rows)) {
+  for (const rowStr of Object.keys(sheet.rows)) {
     const row = Number(rowStr);
     if (row < startRow) continue;
     const cell = sheet.rows[row]?.[col];

@@ -560,7 +560,14 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       }
 
       case 'runHostCommand': {
-        void vscode.commands.executeCommand(msg.command);
+        void (async () => {
+          try {
+            await vscode.commands.executeCommand(msg.command);
+          } catch (err) {
+            const text = err instanceof Error ? err.message : String(err);
+            void vscode.window.showErrorMessage(`SheetLab: ${msg.command} failed — ${text}`);
+          }
+        })();
         return;
       }
 

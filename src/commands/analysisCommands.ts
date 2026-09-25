@@ -4,6 +4,8 @@ import { buildSymbolIndex, WorkbookSymbol } from '../analysis/symbols';
 import { createWorkbookSnapshot, diffSnapshots } from '../analysis/snapshot';
 import { toA1 } from '../utils/cellRef';
 import { AnalysisService } from '../services/analysisService';
+import { runWorkbookTests } from '../testing/testRunner';
+import { WorkbookTestFile } from '../testing/types';
 
 export function registerAnalysisCommands(_context: vscode.ExtensionContext): vscode.Disposable[] {
   return [
@@ -69,6 +71,49 @@ export function registerAnalysisCommands(_context: vscode.ExtensionContext): vsc
         activePanelRegistry.navigateToCell(parsed.sheetName, parsed.row, parsed.col);
         setTimeout(() => activePanelRegistry.send('traceDependents'), 80);
       }
+    }),
+
+
+    vscode.commands.registerCommand('sheetlab.runWorkbookTests', async () => {
+      const wb = activePanelRegistry.getActiveWorkbook();
+      if (!wb) {
+        void vscode.window.showWarningMessage('Open a spreadsheet in SheetLab first.');
+        return;
+      }
+      const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
+      if (!folder) {
+        void vscode.window.showWarningMessage('Open a workspace folder containing .sheetlab/tests/');
+        return;
+      }
+      const testsDir = vscode.Uri.joinPath(folder, '.sheetlab', 'tests');
+      let files: [string, vscode.FileType][] = [];
+      try {
+        files = await vscode.workspace.fs.readDirectory(testsDir);
+      } catch {
+        void vscode.window.showInformationMessage(
+          'No .sheetlab/tests/ folder. Create JSON tests with cell equals / noError assertions.',
+        );
+        return;
+      }
+      const jsons = files.filter(([n, ty]) => ty === vscode.FileType.File && n.endsWith('.json'));
+      if (!jsons.length) {
+        void vscode.window.showInformationMessage('No test JSON files in .sheetlab/tests/');
+        return;
+      }
+      const pick = await vscode.window.showQuickPick(
+        jsons.map(([n]) => ({ label: n, uri: vscode.Uri.joinPath(testsDir, n) })),
+        { placeHolder: 'Run test file…' },
+      );
+      if (!pick) return;
+      const raw = await vscode.workspace.fs.readFile(pick.uri);
+      const file = JSON.parse(Buffer.from(raw).toString('utf8')) as WorkbookTestFile;
+      const results = runWorkbookTests(wb, file);
+      const failed = results.filter((r) => !r.passed);
+      const lines = results.map((r) => `${r.passed ? '✓' : '✗'} ${r.name}${r.passed ? '' : ' — ' + r.message}`);
+      void vscode.window.showInformationMessage(
+        [`${file.name}: ${results.length - failed.length}/${results.length} passed`, ...lines.slice(0, 12)].join('\n'),
+        { modal: true },
+      );
     }),
 
     vscode.commands.registerCommand('sheetlab.compareSnapshots', async () => {

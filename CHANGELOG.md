@@ -4,6 +4,37 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5]
+
+### Improved — Tools panel layout
+- **Results-first**: analysis trees / problems / profile use most of the panel height
+- Options are compact **chip** buttons (one wrap row) instead of large stacked cards
+- Shorter tabs; active cell shown inline in the header
+- Hints live on hover (`title`) so they do not consume vertical space
+
+## [0.3.4]
+
+### Fixed
+- Tools panel crash: `Cannot read properties of undefined (reading 'Sheet1')` — context card used non-existent `appState.sheets`; now uses `rowsBySheet`
+
+## [0.3.3]
+
+### Fixed
+- TypeScript `TS6133` in `src/validation/rules.ts` (unused loop binding)
+- **CSV/TSV Tools analysis** (Trace / Lint / Profile / Explain) — handlers were only on the Excel editor
+- Host command failures from Tools now show an error toast instead of failing silently
+
+## [0.3.2]
+
+### Improved — Tools UI/UX
+- Tools panel **docks beside the grid** (no overlay covering the sheet)
+- Active-cell **context card** while open
+- Clearer tabs, primary actions, status line, results region
+- Severity-styled lint findings; profile stat cards
+
+### Added
+- **Workbook tests** runner (`.sheetlab/tests/*.json`) via Quality tab
+
 ## [0.3.1]
 
 ### Added — Tools UI

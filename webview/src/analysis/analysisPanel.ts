@@ -37,41 +37,48 @@ interface Profile {
 
 type SectionId = 'analyze' | 'navigate' | 'pipelines' | 'queries' | 'quality' | 'git';
 
+const SECTIONS: Array<{ id: SectionId; label: string }> = [
+  { id: 'analyze', label: 'Analyze' },
+  { id: 'navigate', label: 'Go' },
+  { id: 'pipelines', label: 'Pipes' },
+  { id: 'queries', label: 'SQL' },
+  { id: 'quality', label: 'QA' },
+  { id: 'git', label: 'Git' },
+];
+
 /**
- * Unified SheetLab Tools side panel — analysis, navigation, pipelines,
- * queries, validation, and Git — so users are not forced through the palette.
+ * Docked Tools panel optimized for results visibility:
+ * compact chrome (header/tabs/chips) + large scrollable results.
  */
 export class AnalysisPanel {
   private container: HTMLElement;
   private body!: HTMLDivElement;
   private sectionHost!: HTMLDivElement;
+  private contextEl!: HTMLSpanElement;
+  private statusEl!: HTMLDivElement;
   private activeSection: SectionId = 'analyze';
   private onNavigate: ((sheet: string, row: number, col: number) => void) | undefined;
-  private recordingHint = false;
+  private openState = false;
 
   constructor(container: HTMLElement) {
     this.container = container;
-    this.container.classList.add('sheetlab-panel', 'sheetlab-analysis-panel', 'sheetlab-tools-panel');
-    this.container.style.display = 'none';
-    this.container.style.flexDirection = 'column';
-    this.container.style.minWidth = '280px';
-    this.container.style.maxWidth = '360px';
-    this.container.style.width = '320px';
+    this.container.classList.add('sheetlab-panel', 'sheetlab-tools-panel', 'sheetlab-tools-panel--closed');
     this.build();
+    appState.subscribe(() => this.refreshContext());
     onHostMessage((msg) => {
       if (msg.type === 'analysisTraceResult') {
         this.open();
-        this.setSection('analyze');
+        this.setSection('analyze', false);
         this.renderTrace(msg.direction, msg.tree as TraceNode, msg.origin);
       }
       if (msg.type === 'analysisDiagnostics') {
         this.open();
-        this.setSection('analyze');
+        this.setSection('analyze', false);
         this.renderDiagnostics(msg.diagnostics as Diagnostic[]);
       }
       if (msg.type === 'analysisProfile') {
         this.open();
-        this.setSection('analyze');
+        this.setSection('analyze', false);
         this.renderProfile(msg.profile as Profile);
       }
     });
@@ -82,188 +89,184 @@ export class AnalysisPanel {
   }
 
   open(): void {
-    this.container.style.display = 'flex';
+    this.openState = true;
+    this.container.classList.remove('sheetlab-tools-panel--closed');
+    this.container.classList.add('sheetlab-tools-panel--open');
+    this.refreshContext();
   }
 
   close(): void {
-    this.container.style.display = 'none';
+    this.openState = false;
+    this.container.classList.add('sheetlab-tools-panel--closed');
+    this.container.classList.remove('sheetlab-tools-panel--open');
   }
 
   toggle(): void {
-    this.container.style.display === 'none' ? this.open() : this.close();
+    this.openState ? this.close() : this.open();
   }
 
   requestPrecedents(): void {
-    const sheetName = appState.activeSheet;
     const { row, col } = appState.selection.active;
-    postToHost({ type: 'tracePrecedents', sheetName, row, col });
+    postToHost({ type: 'tracePrecedents', sheetName: appState.activeSheet, row, col });
     this.open();
-    this.setSection('analyze');
+    this.setStatus('Tracing precedents…');
   }
 
   requestDependents(): void {
-    const sheetName = appState.activeSheet;
     const { row, col } = appState.selection.active;
-    postToHost({ type: 'traceDependents', sheetName, row, col });
+    postToHost({ type: 'traceDependents', sheetName: appState.activeSheet, row, col });
     this.open();
-    this.setSection('analyze');
+    this.setStatus('Tracing dependents…');
   }
 
   requestLinter(): void {
     postToHost({ type: 'runLinter' });
     this.open();
-    this.setSection('analyze');
+    this.setStatus('Running linter…');
   }
 
   requestProfile(): void {
     postToHost({ type: 'runProfile' });
     this.open();
-    this.setSection('analyze');
+    this.setStatus('Profiling…');
   }
 
   requestExplain(): void {
-    const sheetName = appState.activeSheet;
     const { row, col } = appState.selection.active;
-    postToHost({ type: 'explainCell', sheetName, row, col });
+    postToHost({ type: 'explainCell', sheetName: appState.activeSheet, row, col });
     this.open();
-    this.setSection('analyze');
+    this.setStatus('Explaining cell…');
   }
 
-  private host(command: string): void {
+  private host(command: string, status?: string): void {
+    this.setStatus(status ?? 'Opening…');
     postToHost({ type: 'runHostCommand', command });
+  }
+
+  private setStatus(text: string): void {
+    this.statusEl.textContent = text;
+  }
+
+  private refreshContext(): void {
+    if (!this.openState || !this.contextEl) return;
+    const { row, col } = appState.selection.active;
+    const sheetName = appState.activeSheet || 'Sheet1';
+    const rows = appState.rowsBySheet?.[sheetName];
+    const cell = rows?.[row]?.[col];
+    const formula = cell?.formula ? `=${cell.formula}` : '';
+    const val = cell?.value != null ? String(cell.value) : '';
+    const preview = formula || val || '';
+    this.contextEl.textContent = preview
+      ? `${sheetName}!${a1(row, col)} · ${preview.length > 48 ? preview.slice(0, 48) + '…' : preview}`
+      : `${sheetName}!${a1(row, col)}`;
+    this.contextEl.title = preview || `${sheetName}!${a1(row, col)}`;
   }
 
   private build(): void {
     const header = document.createElement('div');
-    header.className = 'sheetlab-panel-header';
-    header.innerHTML = '<span>SheetLab Tools</span>';
+    header.className = 'sheetlab-tools-header';
+    const left = document.createElement('div');
+    left.className = 'sheetlab-tools-header-left';
+    const title = document.createElement('span');
+    title.className = 'sheetlab-tools-title';
+    title.textContent = 'Tools';
+    this.contextEl = document.createElement('span');
+    this.contextEl.className = 'sheetlab-tools-context';
+    left.appendChild(title);
+    left.appendChild(this.contextEl);
     const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'sheetlab-tools-close';
+    closeBtn.setAttribute('aria-label', 'Close tools');
     closeBtn.textContent = '✕';
-    closeBtn.className = 'sheetlab-panel-close';
-    closeBtn.title = 'Close';
     closeBtn.addEventListener('click', () => this.close());
+    header.appendChild(left);
     header.appendChild(closeBtn);
 
     const tabs = document.createElement('div');
     tabs.className = 'sheetlab-tools-tabs';
-    tabs.style.display = 'flex';
-    tabs.style.flexWrap = 'wrap';
-    tabs.style.gap = '2px';
-    tabs.style.padding = '4px 6px';
-    tabs.style.borderBottom = '1px solid var(--vscode-widget-border, rgba(128,128,128,0.25))';
-
-    const sections: Array<[SectionId, string]> = [
-      ['analyze', 'Analyze'],
-      ['navigate', 'Navigate'],
-      ['pipelines', 'Pipelines'],
-      ['queries', 'Queries'],
-      ['quality', 'Quality'],
-      ['git', 'Git'],
-    ];
-    for (const [id, label] of sections) {
+    tabs.setAttribute('role', 'tablist');
+    for (const s of SECTIONS) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = label;
-      b.dataset.section = id;
-      b.className = 'sheetlab-btn-secondary sheetlab-tools-tab';
-      b.style.fontSize = '11px';
-      b.style.padding = '3px 8px';
-      b.addEventListener('click', () => this.setSection(id));
+      b.className = 'sheetlab-tools-tab';
+      b.dataset.section = s.id;
+      b.setAttribute('role', 'tab');
+      b.textContent = s.label;
+      b.title = s.id;
+      b.addEventListener('click', () => this.setSection(s.id));
       tabs.appendChild(b);
     }
 
     this.sectionHost = document.createElement('div');
-    this.sectionHost.style.padding = '8px';
-    this.sectionHost.style.borderBottom = '1px solid var(--vscode-widget-border, rgba(128,128,128,0.2))';
-    this.sectionHost.style.flexShrink = '0';
+    this.sectionHost.className = 'sheetlab-tools-actions';
+
+    this.statusEl = document.createElement('div');
+    this.statusEl.className = 'sheetlab-tools-status';
+    this.statusEl.textContent = 'Ready';
 
     this.body = document.createElement('div');
-    this.body.className = 'sheetlab-analysis-body';
-    this.body.style.overflow = 'auto';
-    this.body.style.flex = '1';
-    this.body.style.minHeight = '0';
-    this.body.style.fontSize = '12px';
-    this.body.style.padding = '8px';
-    this.body.innerHTML = '<div style="opacity:0.75">Run an action above. Results appear here.</div>';
+    this.body.className = 'sheetlab-tools-results';
+    this.body.innerHTML =
+      '<div class="sheetlab-tools-empty">Run an action above. Trees, problems, and profiles show here.</div>';
 
     this.container.appendChild(header);
     this.container.appendChild(tabs);
     this.container.appendChild(this.sectionHost);
+    this.container.appendChild(this.statusEl);
     this.container.appendChild(this.body);
 
     this.setSection('analyze');
   }
 
-  private setSection(id: SectionId): void {
+  /** @param rebuildActions when false, keep existing chips (after results arrive) */
+  private setSection(id: SectionId, rebuildActions = true): void {
     this.activeSection = id;
     for (const btn of this.container.querySelectorAll<HTMLButtonElement>('.sheetlab-tools-tab')) {
       const on = btn.dataset.section === id;
-      btn.style.fontWeight = on ? '600' : '400';
-      btn.style.outline = on ? '1px solid var(--vscode-focusBorder, #007fd4)' : 'none';
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
     }
+    if (!rebuildActions) return;
     this.sectionHost.innerHTML = '';
-    const actions = document.createElement('div');
-    actions.style.display = 'flex';
-    actions.style.flexDirection = 'column';
-    actions.style.gap = '6px';
 
-    const add = (label: string, title: string, fn: () => void) => {
+    const chip = (label: string, title: string, fn: () => void) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'sheetlab-btn-secondary';
+      b.className = 'sheetlab-tools-chip';
       b.textContent = label;
       b.title = title;
-      b.style.textAlign = 'left';
-      b.style.padding = '6px 10px';
       b.addEventListener('click', fn);
-      actions.appendChild(b);
+      this.sectionHost.appendChild(b);
     };
 
     if (id === 'analyze') {
-      add('Trace Precedents', 'Depends-on tree for the active cell', () => this.requestPrecedents());
-      add('Trace Dependents', 'Who depends on the active cell', () => this.requestDependents());
-      add('Explain Cell', 'Precedents + issues for the active cell', () => this.requestExplain());
-      add('Run Linter', 'Whole-workbook formula/structure checks', () => this.requestLinter());
-      add('Analyze Workbook', 'Profile sheets, formulas, cycles', () => this.requestProfile());
+      chip('Precedents', 'Trace what this cell depends on', () => this.requestPrecedents());
+      chip('Dependents', 'Trace what depends on this cell', () => this.requestDependents());
+      chip('Explain', 'Precedents + issues for active cell', () => this.requestExplain());
+      chip('Lint', 'Workbook-wide structure/formula checks', () => this.requestLinter());
+      chip('Profile', 'Sheets, formulas, cycles summary', () => this.requestProfile());
     } else if (id === 'navigate') {
-      add('Go to Symbol…', 'Sheets, tables, named ranges, formulas', () => this.host('sheetlab.goToSymbol'));
-      add('Peek Cell…', 'Inspect a reference without hunting', () => this.host('sheetlab.peekCell'));
-      add('Go to Cell…', 'Jump to A1-style address', () => postToHost({ type: 'uiCommand', command: 'openGoToCell' }));
+      chip('Symbol…', 'Go to sheet, table, name, or formula', () => this.host('sheetlab.goToSymbol', 'Go to Symbol…'));
+      chip('Peek…', 'Inspect a cell reference', () => this.host('sheetlab.peekCell', 'Peek…'));
+      chip('Go to…', 'Jump to A1 address', () => postToHost({ type: 'uiCommand', command: 'openGoToCell' }));
     } else if (id === 'pipelines') {
-      add('Start Recording', 'Capture Clean Data ops into a pipeline', () => {
-        this.recordingHint = true;
-        this.host('sheetlab.startRecordingTransformations');
-        this.body.innerHTML =
-          '<div>Recording will start after you name the pipeline. Use <b>Clean Data</b> as usual; steps are captured. Then <b>Stop Recording</b>.</div>';
-      });
-      add('Stop Recording & Save', 'Write pipeline to .sheetlab/pipelines/', () => {
-        this.recordingHint = false;
-        this.host('sheetlab.stopRecordingTransformations');
-      });
-      add('View Pipeline…', 'Session or saved pipelines', () => this.host('sheetlab.viewPipeline'));
-      add('Run Saved Pipeline…', 'Replay steps on the open workbook', () => this.host('sheetlab.runPipeline'));
-      this.body.innerHTML = this.recordingHint
-        ? '<div>Recording mode — run Clean Data operations, then Stop Recording.</div>'
-        : '<div style="opacity:0.8">Pipelines store clean-data steps under <code>.sheetlab/pipelines/</code>.</div>';
+      chip('Record', 'Start capturing Clean Data steps', () => this.host('sheetlab.startRecordingTransformations', 'Recording…'));
+      chip('Stop', 'Stop and save pipeline', () => this.host('sheetlab.stopRecordingTransformations', 'Saving…'));
+      chip('View…', 'View session or saved pipelines', () => this.host('sheetlab.viewPipeline', 'Pipelines…'));
+      chip('Run…', 'Replay a saved pipeline', () => this.host('sheetlab.runPipeline', 'Run pipeline…'));
     } else if (id === 'queries') {
-      add('Open Query Panel', 'Write and run SheetLab SQL', () => postToHost({ type: 'uiCommand', command: 'openQuery' }));
-      add('Save Query…', 'Persist SQL under .sheetlab/queries/', () => this.host('sheetlab.saveQuery'));
-      add('Run Saved Query…', 'Pick a saved query and copy/open it', () => this.host('sheetlab.runSavedQuery'));
-      this.body.innerHTML =
-        '<div style="opacity:0.8">Saved queries live in <code>.sheetlab/queries/</code> (workspace folder required).</div>';
+      chip('Query', 'Open query panel', () => postToHost({ type: 'uiCommand', command: 'openQuery' }));
+      chip('Save…', 'Save SQL under .sheetlab/queries/', () => this.host('sheetlab.saveQuery', 'Save query…'));
+      chip('Open…', 'Run a saved query', () => this.host('sheetlab.runSavedQuery', 'Load queries…'));
     } else if (id === 'quality') {
-      add('Run Data Validation…', 'required / unique / type / regex rules', () => this.host('sheetlab.runDataValidation'));
-      add('Run Linter', 'Formula & structure diagnostics', () => this.requestLinter());
-      this.body.innerHTML =
-        '<div style="opacity:0.8">Optional rules file: <code>.sheetlab/rules/default.json</code></div>';
+      chip('Validate…', 'Data quality rules', () => this.host('sheetlab.runDataValidation', 'Validating…'));
+      chip('Tests…', 'Run .sheetlab/tests/*.json', () => this.host('sheetlab.runWorkbookTests', 'Tests…'));
+      chip('Lint', 'Formula & structure', () => this.requestLinter());
     } else if (id === 'git') {
-      add('Compare with HEAD…', 'Semantic cell/formula diff vs Git HEAD', () => this.host('sheetlab.compareWithHead'));
-      add('Analyze Snapshot', 'Stability check + profile summary', () => this.host('sheetlab.compareSnapshots'));
-      this.body.innerHTML =
-        '<div style="opacity:0.8">Compares semantic cell values/formulas — not raw XLSX XML noise. Requires a Git workspace.</div>';
+      chip('vs HEAD…', 'Semantic diff vs Git HEAD', () => this.host('sheetlab.compareWithHead', 'Comparing…'));
+      chip('Snapshot', 'Stability + profile summary', () => this.host('sheetlab.compareSnapshots', 'Snapshot…'));
     }
-
-    this.sectionHost.appendChild(actions);
   }
 
   private renderTrace(
@@ -271,14 +274,14 @@ export class AnalysisPanel {
     tree: TraceNode | null,
     origin: { sheetName: string; row: number; col: number },
   ): void {
+    this.setStatus('Done');
     this.body.innerHTML = '';
     const title = document.createElement('div');
-    title.style.fontWeight = '600';
-    title.style.marginBottom = '8px';
-    title.textContent = `${direction === 'precedents' ? 'Precedents' : 'Dependents'} of ${origin.sheetName}!${a1(origin.row, origin.col)}`;
+    title.className = 'sheetlab-tools-result-title';
+    title.textContent = `${direction === 'precedents' ? 'Precedents' : 'Dependents'} · ${origin.sheetName}!${a1(origin.row, origin.col)}`;
     this.body.appendChild(title);
     if (!tree) {
-      this.body.appendChild(document.createTextNode('No dependency data.'));
+      this.body.appendChild(empty('No dependency data.'));
       return;
     }
     this.body.appendChild(this.renderTree(tree, 0));
@@ -286,18 +289,11 @@ export class AnalysisPanel {
 
   private renderTree(node: TraceNode, depth: number): HTMLElement {
     const wrap = document.createElement('div');
-    wrap.style.marginLeft = `${depth * 12}px`;
-    wrap.style.padding = '2px 0';
+    wrap.className = 'sheetlab-tools-tree-node';
+    wrap.style.paddingLeft = `${Math.min(depth, 8) * 10}px`;
     const line = document.createElement('button');
     line.type = 'button';
-    line.className = 'sheetlab-analysis-node';
-    line.style.background = 'transparent';
-    line.style.border = 'none';
-    line.style.color = 'inherit';
-    line.style.cursor = 'pointer';
-    line.style.textAlign = 'left';
-    line.style.padding = '2px 4px';
-    line.style.borderRadius = '3px';
+    line.className = 'sheetlab-tools-tree-btn';
     const badge = node.kind === 'cycle' ? ' ⟳' : node.kind === 'truncated' ? ' …' : '';
     line.textContent = `${node.label}${badge}${node.formula ? `  ${node.formula}` : ''}${
       node.valuePreview != null ? ` = ${node.valuePreview}` : ''
@@ -305,12 +301,6 @@ export class AnalysisPanel {
     line.title = node.label;
     line.addEventListener('click', () => {
       this.onNavigate?.(node.address.sheetName, node.address.row, node.address.col);
-    });
-    line.addEventListener('mouseenter', () => {
-      line.style.background = 'var(--vscode-list-hoverBackground, rgba(128,128,128,0.15))';
-    });
-    line.addEventListener('mouseleave', () => {
-      line.style.background = 'transparent';
     });
     wrap.appendChild(line);
     for (const child of node.children || []) {
@@ -320,40 +310,30 @@ export class AnalysisPanel {
   }
 
   private renderDiagnostics(list: Diagnostic[]): void {
+    this.setStatus(`${list.length} finding(s)`);
     this.body.innerHTML = '';
     const title = document.createElement('div');
-    title.style.fontWeight = '600';
-    title.style.marginBottom = '8px';
-    title.textContent = `Problems (${list.length})`;
+    title.className = 'sheetlab-tools-result-title';
+    title.textContent = `Problems · ${list.length}`;
     this.body.appendChild(title);
     if (!list.length) {
-      this.body.appendChild(document.createTextNode('No issues found.'));
+      this.body.appendChild(empty('No issues found.'));
       return;
     }
     for (const d of list) {
       const item = document.createElement('button');
       item.type = 'button';
-      item.className = 'sheetlab-analysis-diag';
-      item.style.display = 'block';
-      item.style.width = '100%';
-      item.style.textAlign = 'left';
-      item.style.background = 'transparent';
-      item.style.border = 'none';
-      item.style.borderBottom = '1px solid var(--vscode-widget-border, rgba(128,128,128,0.2))';
-      item.style.color = 'inherit';
-      item.style.padding = '6px 4px';
-      item.style.cursor = d.row !== undefined ? 'pointer' : 'default';
+      item.className = `sheetlab-tools-diag sheetlab-tools-diag--${d.severity}`;
       const loc =
         d.sheetName !== undefined && d.row !== undefined && d.col !== undefined
-          ? `${d.sheetName}!${a1(d.row, d.col)} · `
-          : d.sheetName
-            ? `${d.sheetName} · `
-            : '';
-      item.innerHTML = `<strong>[${d.severity}]</strong> ${loc}${escapeHtml(d.message)}`;
+          ? `${d.sheetName}!${a1(d.row, d.col)}`
+          : d.sheetName ?? '';
+      item.innerHTML = `<span class="sheetlab-tools-diag-sev">${escapeHtml(d.severity)}</span>
+        <span class="sheetlab-tools-diag-loc">${escapeHtml(loc)}</span>
+        <span class="sheetlab-tools-diag-msg">${escapeHtml(d.message)}</span>`;
       if (d.detail) {
         const det = document.createElement('div');
-        det.style.opacity = '0.8';
-        det.style.fontSize = '11px';
+        det.className = 'sheetlab-tools-diag-detail';
         det.textContent = d.detail;
         item.appendChild(det);
       }
@@ -367,55 +347,56 @@ export class AnalysisPanel {
   }
 
   private renderProfile(p: Profile): void {
+    this.setStatus(p.partial ? 'Partial profile' : 'Profile ready');
     this.body.innerHTML = '';
     const title = document.createElement('div');
-    title.style.fontWeight = '600';
-    title.style.marginBottom = '8px';
-    title.textContent = 'Workbook profile';
+    title.className = 'sheetlab-tools-result-title';
+    title.textContent = 'Profile';
     this.body.appendChild(title);
 
-    const lines = [
-      `Sheets: ${p.sheetCount}`,
-      `Populated cells: ${p.totalPopulatedCells}`,
-      `Formulas: ${p.totalFormulaCells}`,
-      `Errors: ${p.totalErrorCells}`,
-      `Tables: ${p.tableCount}`,
-      `Cycles: ${p.cycleCount}`,
-      `Diagnostics: ${p.diagnosticSummary.error} errors, ${p.diagnosticSummary.warning} warnings, ${p.diagnosticSummary.info} info`,
-    ];
-    if (p.partial) lines.push('⚠ Analysis was partial (limits applied).');
-    for (const n of p.notes || []) lines.push(`• ${n}`);
+    const grid = document.createElement('div');
+    grid.className = 'sheetlab-tools-stat-grid';
+    for (const [k, v] of [
+      ['Sheets', p.sheetCount],
+      ['Cells', p.totalPopulatedCells],
+      ['Formulas', p.totalFormulaCells],
+      ['Errors', p.totalErrorCells],
+      ['Tables', p.tableCount],
+      ['Cycles', p.cycleCount],
+    ] as Array<[string, number]>) {
+      const card = document.createElement('div');
+      card.className = 'sheetlab-tools-stat';
+      card.innerHTML = `<div class="sheetlab-tools-stat-value">${v}</div><div class="sheetlab-tools-stat-label">${k}</div>`;
+      grid.appendChild(card);
+    }
+    this.body.appendChild(grid);
 
-    const pre = document.createElement('pre');
-    pre.style.whiteSpace = 'pre-wrap';
-    pre.style.margin = '0 0 12px';
-    pre.textContent = lines.join('\n');
-    this.body.appendChild(pre);
+    const diags = document.createElement('div');
+    diags.className = 'sheetlab-tools-muted';
+    diags.textContent = `${p.diagnosticSummary.error} errors · ${p.diagnosticSummary.warning} warnings · ${p.diagnosticSummary.info} info`;
+    this.body.appendChild(diags);
 
     if (p.sheets?.length) {
       const h = document.createElement('div');
-      h.style.fontWeight = '600';
+      h.className = 'sheetlab-tools-result-title';
+      h.style.marginTop = '10px';
       h.textContent = 'Sheets';
       this.body.appendChild(h);
       for (const s of p.sheets) {
         const row = document.createElement('div');
-        row.textContent = `${s.name}: ${s.populatedCells} cells, ${s.formulaCells} formulas, ${s.errorCells} errors`;
-        this.body.appendChild(row);
-      }
-    }
-    if (p.topConnectedCells?.length) {
-      const h = document.createElement('div');
-      h.style.fontWeight = '600';
-      h.style.marginTop = '8px';
-      h.textContent = 'Most connected cells';
-      this.body.appendChild(h);
-      for (const c of p.topConnectedCells) {
-        const row = document.createElement('div');
-        row.textContent = `${c.address} (degree ${c.degree})`;
+        row.className = 'sheetlab-tools-muted';
+        row.textContent = `${s.name}: ${s.populatedCells} cells · ${s.formulaCells} fx · ${s.errorCells} err`;
         this.body.appendChild(row);
       }
     }
   }
+}
+
+function empty(text: string): HTMLElement {
+  const d = document.createElement('div');
+  d.className = 'sheetlab-tools-empty';
+  d.textContent = text;
+  return d;
 }
 
 function a1(row: number, col: number): string {

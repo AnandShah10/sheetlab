@@ -19,6 +19,7 @@ import { searchWorkbook } from '../../services/searchService';
 import { runQuery } from '../../query/queryEngine';
 import { getWebviewHtml } from '../shared/webviewHtml';
 import { transformationRecorder } from '../../pipelines/recorder';
+import { AnalysisService } from '../../services/analysisService';
 import { Workbook, Worksheet } from '../../types/workbook';
 import { trackPanelFocus } from '../../services/activePanelRegistry';
 
@@ -328,8 +329,89 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         return;
       }
 
+      case 'tracePrecedents': {
+        const wb = {
+          meta: {
+            sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
+            sourcePath: document.uri.fsPath,
+            sheetOrder: [sync.getWorksheet().name],
+          },
+          sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
+        };
+        const analysis = new AnalysisService(() => wb);
+        const tree = analysis.tracePrecedents({ sheetName: msg.sheetName, row: msg.row, col: msg.col });
+        post({ type: 'analysisTraceResult', direction: 'precedents', tree, origin: { sheetName: msg.sheetName, row: msg.row, col: msg.col } });
+        return;
+      }
+      case 'traceDependents': {
+        const wb = {
+          meta: {
+            sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
+            sourcePath: document.uri.fsPath,
+            sheetOrder: [sync.getWorksheet().name],
+          },
+          sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
+        };
+        const analysis = new AnalysisService(() => wb);
+        const tree = analysis.traceDependents({ sheetName: msg.sheetName, row: msg.row, col: msg.col });
+        post({ type: 'analysisTraceResult', direction: 'dependents', tree, origin: { sheetName: msg.sheetName, row: msg.row, col: msg.col } });
+        return;
+      }
+      case 'runLinter': {
+        const wb = {
+          meta: {
+            sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
+            sourcePath: document.uri.fsPath,
+            sheetOrder: [sync.getWorksheet().name],
+          },
+          sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
+        };
+        const analysis = new AnalysisService(() => wb);
+        post({ type: 'analysisDiagnostics', diagnostics: analysis.getDiagnostics() });
+        return;
+      }
+      case 'runProfile': {
+        const wb = {
+          meta: {
+            sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
+            sourcePath: document.uri.fsPath,
+            sheetOrder: [sync.getWorksheet().name],
+          },
+          sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
+        };
+        const analysis = new AnalysisService(() => wb);
+        post({ type: 'analysisProfile', profile: analysis.getProfile() });
+        return;
+      }
+      case 'explainCell': {
+        const wb = {
+          meta: {
+            sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
+            sourcePath: document.uri.fsPath,
+            sheetOrder: [sync.getWorksheet().name],
+          },
+          sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
+        };
+        const analysis = new AnalysisService(() => wb);
+        const addr = { sheetName: msg.sheetName, row: msg.row, col: msg.col };
+        const tree = analysis.tracePrecedents(addr);
+        const diags = analysis.getDiagnostics().filter(
+          (d) => d.sheetName === msg.sheetName && d.row === msg.row && d.col === msg.col,
+        );
+        post({ type: 'analysisTraceResult', direction: 'precedents', tree, origin: addr });
+        if (diags.length) post({ type: 'analysisDiagnostics', diagnostics: diags });
+        return;
+      }
+
       case 'runHostCommand': {
-        void vscode.commands.executeCommand(msg.command);
+        void (async () => {
+          try {
+            await vscode.commands.executeCommand(msg.command);
+          } catch (err) {
+            const text = err instanceof Error ? err.message : String(err);
+            void vscode.window.showErrorMessage(`SheetLab: ${msg.command} failed — ${text}`);
+          }
+        })();
         return;
       }
 
