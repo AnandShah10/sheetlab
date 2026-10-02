@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { Cell, CellFormat, RowData, SourceKind, Workbook, WorkbookMeta, Worksheet } from '../types/workbook';
+import { SHEETLAB_META_SHEET, SheetlabMetaPayload } from './sheetlabMeta';
 import { parseA1OrRange } from '../utils/cellRef';
 
 export interface ExcelReadOptions {
@@ -46,7 +47,20 @@ export async function readXlsxWorkbook(
     );
   }
 
+  let metaPayload: SheetlabMetaPayload | null = null;
+
   wb.eachSheet((worksheet) => {
+    // SheetLab internal metadata — not shown as a normal tab
+    if (worksheet.name === SHEETLAB_META_SHEET) {
+      try {
+        const raw = worksheet.getCell(1, 1).value;
+        const text = typeof raw === 'string' ? raw : raw != null ? String(raw) : '';
+        if (text) metaPayload = JSON.parse(text) as SheetlabMetaPayload;
+      } catch {
+        metaPayload = null;
+      }
+      return;
+    }
     sheetOrder.push(worksheet.name);
     const rows: Record<number, RowData> = {};
     let colCount = 0;
@@ -93,6 +107,18 @@ export async function readXlsxWorkbook(
       tables: extractTables(worksheet),
     };
   });
+
+  // Assignments inside eachSheet callback are not visible to control-flow analysis
+  const payload = metaPayload as SheetlabMetaPayload | null;
+  const lineageMap = payload?.lineage;
+  if (lineageMap) {
+    for (const name of Object.keys(lineageMap)) {
+      const lin = lineageMap[name];
+      if (sheets[name] && lin) {
+        sheets[name].lineage = lin;
+      }
+    }
+  }
 
   const meta: WorkbookMeta = {
     sourceKind: sourceKind as SourceKind,

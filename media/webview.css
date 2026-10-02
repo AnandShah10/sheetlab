@@ -729,10 +729,9 @@ body {
   transition: width 0.12s ease, max-width 0.12s ease, opacity 0.1s ease;
 }
 .sheetlab-tools-panel--open {
-  width: 280px;
-  max-width: 32vw;
-  min-width: 240px;
+  /* width applied by JS for resize persistence */
   opacity: 1;
+  position: relative;
 }
 .sheetlab-tools-panel--closed {
   width: 0;
@@ -952,4 +951,257 @@ body {
   font-size: 11px;
   opacity: 0.8;
   margin: 1px 0;
+}
+
+
+/* Resize handle on left edge of Tools */
+.sheetlab-tools-resize {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 5;
+  background: transparent;
+}
+.sheetlab-tools-resize:hover,
+.sheetlab-tools-resize.is-dragging {
+  background: var(--vscode-focusBorder, #007fd4);
+  opacity: 0.85;
+}
+
+/* Thin scrollbars inside Tools */
+.sheetlab-tools-panel,
+.sheetlab-tools-results,
+.sheetlab-tools-actions {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121,121,121,0.4)) transparent;
+}
+.sheetlab-tools-panel::-webkit-scrollbar,
+.sheetlab-tools-results::-webkit-scrollbar,
+.sheetlab-tools-actions::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.sheetlab-tools-panel::-webkit-scrollbar-thumb,
+.sheetlab-tools-results::-webkit-scrollbar-thumb,
+.sheetlab-tools-actions::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background, rgba(121,121,121,0.45));
+  border-radius: 3px;
+}
+.sheetlab-tools-panel::-webkit-scrollbar-thumb:hover,
+.sheetlab-tools-results::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground, rgba(121,121,121,0.7));
+}
+.sheetlab-tools-panel::-webkit-scrollbar-track,
+.sheetlab-tools-results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sheetlab-tools-fix {
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-focusBorder, rgba(0,127,212,0.5));
+  background: var(--vscode-input-background, rgba(127,127,127,0.1));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.sheetlab-tools-fix code {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+}
+
+.sheetlab-tools-git-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin: 6px 0;
+}
+.sheetlab-tools-git-filter {
+  font-size: 11px;
+  padding: 2px 4px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+}
+.sheetlab-tools-git-active {
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.12));
+}
+.sheetlab-tools-explain-pre {
+  white-space: pre-wrap;
+  font-size: 11px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  margin: 0;
+  line-height: 1.4;
+}
+
+
+/* ---- Filter popup ---- */
+.sheetlab-filter-popup {
+  flex-direction: column;
+  gap: 8px;
+  min-width: 260px;
+  padding: 10px 12px;
+}
+.sheetlab-filter-col-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+}
+.sheetlab-filter-kind,
+.sheetlab-filter-value {
+  width: 100%;
+  box-sizing: border-box;
+}
+.sheetlab-filter-status {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  min-height: 1.2em;
+}
+
+/* ---- Git / compare diff highlighting ---- */
+.sheetlab-diff-item {
+  border-left: 3px solid transparent;
+}
+.sheetlab-diff-added {
+  border-left-color: var(--vscode-gitDecoration-addedResourceForeground, #3bb26b);
+  background: color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground, #3bb26b) 12%, transparent);
+}
+.sheetlab-diff-removed {
+  border-left-color: var(--vscode-gitDecoration-deletedResourceForeground, #f14c4c);
+  background: color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground, #f14c4c) 12%, transparent);
+}
+.sheetlab-diff-changed,
+.sheetlab-diff-formula {
+  border-left-color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+  background: color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d) 12%, transparent);
+}
+.sheetlab-diff-kind {
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.sheetlab-diff-added .sheetlab-diff-kind { color: var(--vscode-gitDecoration-addedResourceForeground, #3bb26b); }
+.sheetlab-diff-removed .sheetlab-diff-kind { color: var(--vscode-gitDecoration-deletedResourceForeground, #f14c4c); }
+.sheetlab-diff-changed .sheetlab-diff-kind,
+.sheetlab-diff-formula .sheetlab-diff-kind { color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d); }
+.sheetlab-diff-before {
+  text-decoration: line-through;
+  opacity: 0.75;
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #f14c4c);
+}
+.sheetlab-diff-after {
+  font-weight: 600;
+  color: var(--vscode-gitDecoration-addedResourceForeground, #3bb26b);
+}
+.sheetlab-diff-arrow {
+  opacity: 0.6;
+}
+.sheetlab-tools-git-active {
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+}
+
+
+/* Diff vs HEAD toolbar button (shown when Git has local changes) */
+.sheetlab-toolbar-diff-btn {
+  display: none;
+}
+.sheetlab-toolbar-diff-btn.sheetlab-toolbar-diff-active {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+  font-weight: 600;
+  border-color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+}
+
+
+/* Inline cell diff highlights (VS Code–style gutter colors) */
+.sheetlab-cell-diff {
+  box-shadow: inset 3px 0 0 var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+}
+.sheetlab-cell-diff-added {
+  background: color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground, #3bb26b) 22%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--vscode-gitDecoration-addedResourceForeground, #3bb26b);
+}
+.sheetlab-cell-diff-removed {
+  background: color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground, #f14c4c) 22%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--vscode-gitDecoration-deletedResourceForeground, #f14c4c);
+  opacity: 0.85;
+  text-decoration: line-through;
+}
+.sheetlab-cell-diff-changed,
+.sheetlab-cell-diff-formula {
+  background: color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d) 22%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+}
+
+
+/* GitHub-style unified changes view */
+.sheetlab-diff-unified {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  max-height: 100%;
+  overflow: auto;
+}
+.sheetlab-diff-hunk {
+  border: 1px solid var(--vscode-widget-border, #333);
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
+  font-size: 12px;
+}
+.sheetlab-diff-hunk-header {
+  padding: 4px 8px;
+  background: var(--vscode-editorWidget-background, rgba(127,127,127,0.12));
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.sheetlab-diff-hunk-header code {
+  font-size: 11px;
+}
+.sheetlab-diff-line {
+  display: flex;
+  gap: 8px;
+  padding: 2px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.sheetlab-diff-prefix {
+  width: 1em;
+  flex-shrink: 0;
+  font-weight: 700;
+  user-select: none;
+}
+.sheetlab-diff-line-del {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149);
+}
+.sheetlab-diff-line-add {
+  background: rgba(46, 160, 67, 0.15);
+  color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950);
+}
+.sheetlab-diff-hunk-actions {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px 6px;
+  border-top: 1px solid var(--vscode-widget-border, #333);
+}
+.sheetlab-diff-hunk-added {
+  border-left: 3px solid #3fb950;
+}
+.sheetlab-diff-hunk-removed {
+  border-left: 3px solid #f85149;
+}
+.sheetlab-diff-hunk-changed {
+  border-left: 3px solid #d29922;
 }

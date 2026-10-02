@@ -7,6 +7,7 @@ import {
   SortKey,
   WebviewToHostMessage,
   Workbook,
+  Worksheet,
 } from '../../types/workbook';
 import { readXlsxWorkbook } from '../../excel/excelReader';
 import { readLegacyXls } from '../../excel/legacyXlsReader';
@@ -27,8 +28,17 @@ import { runQuery } from '../../query/queryEngine';
 import { getWebviewHtml } from '../shared/webviewHtml';
 import { FormulaEngine } from '../../formula/formulaEngine';
 import { AnalysisService } from '../../services/analysisService';
+import { publishDiagnostics } from '../../services/diagnosticsService';
+import { explainCell } from '../../analysis/explainCell';
 import { transformationRecorder } from '../../pipelines/recorder';
 import { trackPanelFocus } from '../../services/activePanelRegistry';
+import { buildLineage } from '../../analysis/lineage';
+import { recordQuery, queriesMentioningSheet } from '../../services/queryHistory';
+import { proposeColumnFormulaFixes } from '../../analysis/columnFix';
+import { writeLineageSidecar, loadLineageSidecar } from '../../services/lineageSidecar';
+import { getFileGitStatus } from '../../services/gitStatus';
+import { listPipelines, loadPipeline } from '../../pipelines/pipelineStore';
+import { TransformationPipeline } from '../../pipelines/types';
 
 /** One instance per open .xlsx/.xls/.xlsm document — VS Code's CustomDocument contract. */
 class ExcelDocument implements vscode.CustomDocument {
@@ -171,6 +181,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       doc.formulaEngine = new FormulaEngine(doc.workbook.sheets, doc.workbook.meta.sheetOrder);
     }
     doc.analysis = new AnalysisService(() => doc.workbook);
+    await loadLineageSidecar(doc.workbook);
   }
 
   private async handleExternalChange(doc: ExcelDocument): Promise<void> {
@@ -239,6 +250,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
             },
           },
         });
+        void this.pushGitStatus(doc, post);
         return;
       }
 
@@ -307,6 +319,12 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         return;
       }
 
+      case 'clearFilter': {
+        // Client already cleared; acknowledge so other panels stay in sync
+        post({ type: 'filterResult', sheetName: msg.sheetName, col: -1, visibleRows: [] });
+        return;
+      }
+
       case 'cleanData': {
         const sheet = getSheet(doc.workbook, msg.sheetName);
         const before = structuredCloneSheet(sheet);
@@ -322,8 +340,27 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       case 'undo': {
         const entry = doc.undoStack.undo();
         if (entry) {
-          doc.workbook.sheets[entry.sheetName] = entry.before;
-          this.resyncSheet(doc, entry.sheetName, post);
+          if (entry.kind === 'composite') {
+            for (const part of entry.parts) {
+              doc.workbook.sheets[part.sheetName] = part.before;
+              this.resyncSheet(doc, part.sheetName, post);
+            }
+          } else if (entry.kind === 'sheetCreate') {
+            if (doc.workbook.meta.sheetOrder.length > 1) {
+              deleteWorksheet(doc.workbook, entry.sheetName);
+            }
+            doc.workbook.meta.sheetOrder = [...entry.previousSheetOrder];
+            // ensure order sheets still exist
+            doc.workbook.meta.sheetOrder = doc.workbook.meta.sheetOrder.filter((n) => doc.workbook.sheets[n]);
+            doc.activeSheet = entry.previousActiveSheet in doc.workbook.sheets
+              ? entry.previousActiveSheet
+              : doc.workbook.meta.sheetOrder[0];
+            this.broadcastSheetOrderChange(doc, post);
+            this.resyncSheet(doc, doc.activeSheet, post);
+          } else {
+            doc.workbook.sheets[entry.sheetName] = entry.before;
+            this.resyncSheet(doc, entry.sheetName, post);
+          }
         }
         post({ type: 'undoRedoState', canUndo: doc.undoStack.canUndo(), canRedo: doc.undoStack.canRedo() });
         return;
@@ -332,8 +369,23 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       case 'redo': {
         const entry = doc.undoStack.redo();
         if (entry) {
-          doc.workbook.sheets[entry.sheetName] = entry.after;
-          this.resyncSheet(doc, entry.sheetName, post);
+          if (entry.kind === 'composite') {
+            for (const part of entry.parts) {
+              doc.workbook.sheets[part.sheetName] = part.after;
+              this.resyncSheet(doc, part.sheetName, post);
+            }
+          } else if (entry.kind === 'sheetCreate') {
+            doc.workbook.sheets[entry.sheetName] = JSON.parse(JSON.stringify(entry.sheetSnapshot));
+            if (!doc.workbook.meta.sheetOrder.includes(entry.sheetName)) {
+              doc.workbook.meta.sheetOrder.push(entry.sheetName);
+            }
+            doc.activeSheet = entry.sheetName;
+            this.broadcastSheetOrderChange(doc, post);
+            this.resyncSheet(doc, entry.sheetName, post);
+          } else {
+            doc.workbook.sheets[entry.sheetName] = entry.after;
+            this.resyncSheet(doc, entry.sheetName, post);
+          }
         }
         post({ type: 'undoRedoState', canUndo: doc.undoStack.canUndo(), canRedo: doc.undoStack.canRedo() });
         return;
@@ -345,7 +397,9 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         if (ok) {
           this.dirtyDocuments.delete(doc.uri.toString());
           await doc.conflictWatcher?.refreshKnownMtime();
+          void writeLineageSidecar(doc.workbook);
           post({ type: 'saved', dirty: false });
+          void this.pushGitStatus(doc, post);
         }
         return;
       }
@@ -427,8 +481,66 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         if ('message' in result) {
           post({ type: 'queryError', error: result });
         } else {
+          recordQuery({
+            sql: msg.sql,
+            sheetHint: doc.activeSheet,
+            rowCount: result.rowCount,
+            elapsedMs: result.elapsedMs,
+          });
           post({ type: 'queryResult', result });
         }
+        return;
+      }
+
+      case 'materializeQuery': {
+        const base = msg.sheetName?.trim() || 'QueryResult';
+        let name = base;
+        let n = 1;
+        while (doc.workbook.sheets[name]) {
+          n += 1;
+          name = `${base}_${n}`;
+        }
+        const previousActiveSheet = doc.activeSheet;
+        const previousSheetOrder = [...doc.workbook.meta.sheetOrder];
+        const created = createWorksheet(doc.workbook, name);
+        const data: string[][] = [
+          msg.columns.map(String),
+          ...msg.rows.map((r) => r.map((v) => (v === null || v === undefined ? '' : String(v)))),
+        ];
+        pasteRange(created, 0, 0, data);
+        created.lineage = {
+          kind: 'query',
+          sql: msg.sql,
+          sourceSheet: previousActiveSheet,
+          createdAt: new Date().toISOString(),
+        };
+        const metaRow = Math.max(created.rowCount, data.length);
+        if (!created.rows[metaRow]) created.rows[metaRow] = {};
+        const prov = `# sheetlab:query ${msg.sql.replace(/\n/g, ' ').slice(0, 500)}`;
+        created.rows[metaRow][0] = { raw: prov, value: prov, type: 'string' };
+        created.rowCount = Math.max(created.rowCount, metaRow + 1);
+        doc.activeSheet = name;
+        doc.undoStack.push({
+          kind: 'sheetCreate',
+          label: `Materialize query → ${name}`,
+          sheetName: name,
+          previousActiveSheet,
+          previousSheetOrder,
+          sheetSnapshot: structuredCloneSheet(created),
+        });
+        this.markDirty(doc);
+        this.broadcastSheetOrderChange(doc, post);
+        this.resyncSheet(doc, name, post);
+        post({ type: 'undoRedoState', canUndo: doc.undoStack.canUndo(), canRedo: doc.undoStack.canRedo() });
+        recordQuery({
+          sql: msg.sql,
+          sheetHint: name,
+          rowCount: msg.rows.length,
+        });
+        void writeLineageSidecar(doc.workbook);
+        void vscode.window.showInformationMessage(
+          `Materialized query → "${name}" (${msg.rows.length} rows). Ctrl+Z removes the sheet.`,
+        );
         return;
       }
 
@@ -539,7 +651,9 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       }
       case 'runLinter': {
         if (!doc.analysis) doc.analysis = new AnalysisService(() => doc.workbook);
-        post({ type: 'analysisDiagnostics', diagnostics: doc.analysis.getDiagnostics() });
+        const diagnostics = doc.analysis.getDiagnostics();
+        publishDiagnostics(doc.uri, diagnostics);
+        post({ type: 'analysisDiagnostics', diagnostics });
         return;
       }
       case 'runProfile': {
@@ -550,12 +664,147 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       case 'explainCell': {
         if (!doc.analysis) doc.analysis = new AnalysisService(() => doc.workbook);
         const addr = { sheetName: msg.sheetName, row: msg.row, col: msg.col };
+        const g = doc.analysis.getGraph();
+        const allDiags = doc.analysis.getDiagnostics();
+        const explanation = explainCell(doc.workbook, msg.sheetName, msg.row, msg.col, g ?? undefined, allDiags);
+        post({ type: 'analysisExplanation', explanation });
         const tree = doc.analysis.tracePrecedents(addr);
-        const diags = doc.analysis.getDiagnostics().filter(
-          (d) => d.sheetName === msg.sheetName && d.row === msg.row && d.col === msg.col,
-        );
         post({ type: 'analysisTraceResult', direction: 'precedents', tree, origin: addr });
-        if (diags.length) post({ type: 'analysisDiagnostics', diagnostics: diags });
+        return;
+      }
+
+      case 'applyPipeline': {
+        const steps = msg.steps;
+        const label = msg.label ?? 'Pipeline';
+        // Snapshot each affected sheet once before any steps
+        const beforeBySheet = new Map<string, Worksheet>();
+        for (const step of steps) {
+          if (!beforeBySheet.has(step.sheetName) && doc.workbook.sheets[step.sheetName]) {
+            beforeBySheet.set(step.sheetName, structuredCloneSheet(doc.workbook.sheets[step.sheetName]));
+          }
+        }
+        let applied = 0;
+        for (const step of steps) {
+          const sheet = doc.workbook.sheets[step.sheetName];
+          if (!sheet) continue;
+          doc.workbook.sheets[step.sheetName] = applyCleanup(sheet, step.range, step.operation);
+          applied++;
+        }
+        const parts = [...beforeBySheet.entries()].map(([sheetName, before]) => ({
+          sheetName,
+          before: before as Worksheet,
+          after: structuredCloneSheet(doc.workbook.sheets[sheetName]) as Worksheet,
+          label,
+        }));
+        if (parts.length) {
+          doc.undoStack.push({
+            kind: 'composite',
+            label: `${label} (${applied} steps)`,
+            parts,
+          });
+        }
+        this.markDirty(doc);
+        for (const sheetName of beforeBySheet.keys()) {
+          this.resyncSheet(doc, sheetName, post);
+        }
+        post({ type: 'undoRedoState', canUndo: doc.undoStack.canUndo(), canRedo: doc.undoStack.canRedo() });
+        void vscode.window.showInformationMessage(
+          `Applied ${applied} pipeline step(s). Undo once to revert the whole pipeline.`,
+        );
+        return;
+      }
+
+      case 'proposeColumnFixes': {
+        const proposals = proposeColumnFormulaFixes(doc.workbook, msg.sheetName, msg.col, {
+          activeRow: msg.row,
+        });
+        post({ type: 'analysisFixProposals', proposals });
+        return;
+      }
+
+      case 'revertDiffCell': {
+        const sheet = getSheet(doc.workbook, msg.sheetName);
+        const before = structuredCloneSheet(sheet);
+        if (msg.kind === 'added' || msg.raw === '') {
+          // clear cell
+          setCellRaw(sheet, msg.row, msg.col, '');
+        } else {
+          setCellRaw(sheet, msg.row, msg.col, msg.raw);
+        }
+        doc.undoStack.push({
+          sheetName: msg.sheetName,
+          before,
+          after: structuredCloneSheet(sheet),
+          label: 'Revert cell to HEAD',
+        });
+        this.markDirty(doc);
+        this.resyncSheet(doc, msg.sheetName, post);
+        post({ type: 'undoRedoState', canUndo: doc.undoStack.canUndo(), canRedo: doc.undoStack.canRedo() });
+        // Re-diff will be requested by webview
+        return;
+      }
+
+      case 'applyCellFixes': {
+        const fixes = msg.fixes as Array<{ sheetName: string; row: number; col: number; raw: string }>;
+        if (!fixes.length) return;
+        const beforeBySheet = new Map<string, Worksheet>();
+        for (const f of fixes) {
+          if (!beforeBySheet.has(f.sheetName) && doc.workbook.sheets[f.sheetName]) {
+            beforeBySheet.set(f.sheetName, structuredCloneSheet(doc.workbook.sheets[f.sheetName]));
+          }
+        }
+        for (const f of fixes) {
+          const sheet = doc.workbook.sheets[f.sheetName];
+          if (!sheet) continue;
+          setCellRaw(sheet, f.row, f.col, f.raw);
+        }
+        const parts = [...beforeBySheet.entries()].map(([sheetName, before]) => ({
+          sheetName,
+          before: before as Worksheet,
+          after: structuredCloneSheet(doc.workbook.sheets[sheetName]) as Worksheet,
+          label: 'Apply formula fixes',
+        }));
+        if (parts.length) {
+          doc.undoStack.push({ kind: 'composite', label: `Apply ${fixes.length} formula fix(es)`, parts });
+        }
+        this.markDirty(doc);
+        for (const sheetName of beforeBySheet.keys()) {
+          this.resyncSheet(doc, sheetName, post);
+        }
+        post({ type: 'undoRedoState', canUndo: doc.undoStack.canUndo(), canRedo: doc.undoStack.canRedo() });
+        void vscode.window.showInformationMessage(`Applied ${fixes.length} formula fix(es). Undo once to revert.`);
+        return;
+      }
+
+      case 'showLineage': {
+        if (!doc.analysis) doc.analysis = new AnalysisService(() => doc.workbook);
+        let pipes: TransformationPipeline[] = [];
+        try {
+          const listed = await listPipelines();
+          for (const p of listed) {
+            pipes.push(await loadPipeline(p.uri));
+          }
+        } catch {
+          pipes = [];
+        }
+        if (transformationRecorder.getPipeline().steps.length) {
+          pipes = [transformationRecorder.getPipeline(), ...pipes];
+        }
+        const root = buildLineage(
+          doc.workbook,
+          msg.sheetName,
+          msg.row,
+          msg.col,
+          pipes,
+          doc.analysis.getGraph() ?? undefined,
+          queriesMentioningSheet(msg.sheetName),
+        );
+        post({ type: 'analysisLineage', root });
+        return;
+      }
+
+      case 'uiCommand': {
+        post({ type: 'uiCommand', command: msg.command });
         return;
       }
 
@@ -810,6 +1059,15 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     });
   }
 
+  private async pushGitStatus(doc: ExcelDocument, post: (m: HostToWebviewMessage) => void): Promise<void> {
+    try {
+      const status = await getFileGitStatus(doc.uri.fsPath);
+      post({ type: 'gitFileStatus', unstaged: status.unstaged, staged: status.staged });
+    } catch {
+      post({ type: 'gitFileStatus', unstaged: false, staged: false });
+    }
+  }
+
   private markDirty(doc: ExcelDocument): void {
     const key = doc.uri.toString();
     this.documents.set(key, doc);
@@ -882,8 +1140,8 @@ function sliceRows(rows: Record<number, unknown>, start: number, end: number): R
   return out;
 }
 
-function structuredCloneSheet<T>(sheet: T): T {
-  return JSON.parse(JSON.stringify(sheet));
+function structuredCloneSheet(sheet: Worksheet): Worksheet {
+  return JSON.parse(JSON.stringify(sheet)) as Worksheet;
 }
 
 

@@ -29,6 +29,21 @@ const extensionConfig = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const cliConfig = {
+  entryPoints: ['src/cli/main.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node18',
+  format: 'cjs',
+  outfile: 'dist/cli.js',
+  external: ['vscode'],
+  sourcemap: !production,
+  minify: production,
+  logLevel: 'info',
+  banner: { js: '#!/usr/bin/env node' },
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const webviewConfig = {
   entryPoints: ['webview/src/app/main.ts'],
   bundle: true,
@@ -43,14 +58,19 @@ const webviewConfig = {
 
 async function run() {
   if (watch) {
-    const [extCtx, webCtx] = await Promise.all([
+    const [extCtx, webCtx, cliCtx] = await Promise.all([
       esbuild.context(extensionConfig),
       esbuild.context(webviewConfig),
+      esbuild.context(cliConfig),
     ]);
-    await Promise.all([extCtx.watch(), webCtx.watch()]);
+    await Promise.all([extCtx.watch(), webCtx.watch(), cliCtx.watch()]);
     console.log('[esbuild] watching for changes...');
   } else {
-    await Promise.all([esbuild.build(extensionConfig), esbuild.build(webviewConfig)]);
+    await Promise.all([
+      esbuild.build(extensionConfig),
+      esbuild.build(webviewConfig),
+      esbuild.build(cliConfig),
+    ]);
     console.log(`[esbuild] build complete (${production ? 'production' : 'development'})`);
   }
 }
@@ -60,4 +80,4 @@ run().catch((err) => {
   process.exit(1);
 });
 
-module.exports = { extensionConfig, webviewConfig, projectRoot: path.resolve(__dirname) };
+module.exports = { extensionConfig, webviewConfig, cliConfig, projectRoot: path.resolve(__dirname) };

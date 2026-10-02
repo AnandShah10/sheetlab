@@ -16,12 +16,14 @@ import { registerUiCommands } from './commands/uiCommands';
 import { registerAnalysisCommands } from './commands/analysisCommands';
 import { registerReproCommands } from './commands/reproCommands';
 import { activePanelRegistry } from './services/activePanelRegistry';
+import { disposeDiagnosticCollection, getDiagnosticCollection } from './services/diagnosticsService';
 
 /**
  * Activation is lightweight: custom editors + commands only.
  * No eager file scanning, network, or telemetry.
  */
 export function activate(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(getDiagnosticCollection());
   const push = (...items: Array<vscode.Disposable | vscode.Disposable[]>) => {
     for (const item of items) {
       if (Array.isArray(item)) context.subscriptions.push(...item);
@@ -64,5 +66,5 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
-  // Subscriptions dispose automatically.
+  disposeDiagnosticCollection();
 }

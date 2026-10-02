@@ -43,11 +43,19 @@ class ActivePanelRegistry {
     return true;
   }
 
+  /** Post an arbitrary host→webview message to the last SheetLab panel. */
+  postRaw(msg: HostToWebviewMessage): boolean {
+    const post = this.active ?? this.lastPost;
+    if (!post) return false;
+    post(msg);
+    return true;
+  }
+
   /** Navigate grid to a cell (used by Go to Symbol / Peek). */
   navigateToCell(sheetName: string, row: number, col: number): boolean {
     const post = this.active ?? this.lastPost;
     if (!post) return false;
-    post({ type: 'forceNavigate', sheetName, row, col } as HostToWebviewMessage);
+    post({ type: 'forceNavigate', sheetName, row, col });
     return true;
   }
 
@@ -64,17 +72,6 @@ class ActivePanelRegistry {
   hasActive(): boolean {
     return this.active !== undefined || this.lastPost !== undefined;
   }
-}
-
-function toA1Local(row: number, col: number): string {
-  let n = col + 1;
-  let s = '';
-  while (n > 0) {
-    const rem = (n - 1) % 26;
-    s = String.fromCharCode(65 + rem) + s;
-    n = Math.floor((n - 1) / 26);
-  }
-  return `${s}${row + 1}`;
 }
 
 export const activePanelRegistry = new ActivePanelRegistry();

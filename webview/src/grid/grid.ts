@@ -99,17 +99,22 @@ export class Grid {
     }
   }
 
-  /** Rebuilds the row-offset prefix-sum array, accounting for per-row height overrides and hidden rows. */
+  private filterRef: Set<number> | null | undefined = undefined;
+
+  /** Rebuilds the row-offset prefix-sum array, accounting for per-row height overrides, hidden rows, and active filters. */
   private rebuildRowOffsets(): void {
     const sheet = appState.sheetSummaries[appState.activeSheet];
     const rowMeta = sheet?.rowMeta ?? {};
     this.rowMetaRef = rowMeta;
+    const filter = appState.visibleRowFilter[appState.activeSheet] ?? null;
+    this.filterRef = filter;
     const rowCount = Math.max(appState.currentRowCount(), 100);
     const offsets = new Array(rowCount + 1);
     offsets[0] = 0;
     for (let r = 0; r < rowCount; r++) {
       const meta = rowMeta[r];
-      const height = meta?.hidden ? 0 : (meta?.height ?? this.rowHeight);
+      const filteredOut = filter != null && !filter.has(r);
+      const height = meta?.hidden || filteredOut ? 0 : (meta?.height ?? this.rowHeight);
       offsets[r + 1] = offsets[r] + height;
     }
     this.rowOffsets = offsets;
@@ -118,7 +123,8 @@ export class Grid {
   private rebuildRowOffsetsIfStale(): void {
     const sheet = appState.sheetSummaries[appState.activeSheet];
     const rowMeta = sheet?.rowMeta ?? {};
-    if (rowMeta !== this.rowMetaRef || this.rowOffsets.length === 0) {
+    const filter = appState.visibleRowFilter[appState.activeSheet] ?? null;
+    if (rowMeta !== this.rowMetaRef || filter !== this.filterRef || this.rowOffsets.length === 0) {
       this.rebuildRowOffsets();
     }
   }
@@ -665,6 +671,36 @@ export class Grid {
 
     const hidden = appState.visibleRowFilter[appState.activeSheet];
     node.style.display = hidden && !hidden.has(row) ? 'none' : '';
+
+    // Git / semantic diff decorations (VS Code–style inline highlights)
+    const diffKey = `${appState.activeSheet}!${row}!${col}`;
+    const diff = appState.diffHighlights[diffKey];
+    node.classList.toggle('sheetlab-cell-diff', Boolean(diff));
+    node.classList.toggle('sheetlab-cell-diff-added', diff?.kind === 'added');
+    node.classList.toggle('sheetlab-cell-diff-removed', diff?.kind === 'removed');
+    node.classList.toggle('sheetlab-cell-diff-changed', diff?.kind === 'value' || diff?.kind === 'changed');
+    node.classList.toggle('sheetlab-cell-diff-formula', diff?.kind === 'formula');
+    if (diff) {
+      const tip = [
+        diff.kind.toUpperCase(),
+        diff.before != null && diff.before !== '' ? `HEAD: ${diff.before}` : 'HEAD: ∅',
+        diff.after != null && diff.after !== '' ? `Now: ${diff.after}` : 'Now: ∅',
+      ].join('\n');
+      node.title = tip;
+      // Inline colors so highlights show even if format styles override classes
+      if (diff.kind === 'added') {
+        node.style.backgroundColor = 'rgba(46, 160, 67, 0.28)';
+      } else if (diff.kind === 'removed') {
+        node.style.backgroundColor = 'rgba(248, 81, 73, 0.28)';
+      } else {
+        node.style.backgroundColor = 'rgba(210, 153, 34, 0.28)';
+      }
+    } else {
+      if (node.title && node.title.includes('HEAD:')) node.title = '';
+      if (node.style.backgroundColor && /rgba\((46, 160, 67|248, 81, 73|210, 153, 34)/.test(node.style.backgroundColor)) {
+        node.style.backgroundColor = '';
+      }
+    }
 
     const sel = appState.selection;
     const inRange = row >= sel.range.startRow && row <= sel.range.endRow && col >= sel.range.startCol && col <= sel.range.endCol;

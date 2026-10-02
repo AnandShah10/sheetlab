@@ -8,6 +8,7 @@ export class QueryPanel {
   private resultGrid!: HTMLDivElement;
   private errorBox!: HTMLDivElement;
   private lastResult: QueryResultPayload | null = null;
+  private lastSql = '';
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -17,6 +18,11 @@ export class QueryPanel {
     onHostMessage((msg) => {
       if (msg.type === 'queryResult') this.renderResult(msg.result);
       if (msg.type === 'queryError') this.renderError(msg.error);
+      if (msg.type === 'loadQuerySql') {
+        this.open();
+        this.editor.value = msg.sql;
+        if (msg.name) this.editor.title = msg.name;
+      }
     });
   }
 
@@ -69,7 +75,7 @@ export class QueryPanel {
     const actions = document.createElement('div');
     actions.className = 'sheetlab-query-actions';
     const copyBtn = this.actionButton('Copy Result', () => this.copyResult());
-    const newSheetBtn = this.actionButton('New Worksheet From Result', () => this.exportToNewSheet());
+    const newSheetBtn = this.actionButton('Materialize to Sheet', () => this.exportToNewSheet());
     if (appState.meta?.sourceKind === 'csv' || appState.meta?.sourceKind === 'tsv') {
       // CSV/TSV is fundamentally single-sheet -- there's nowhere for a new
       // worksheet to live, so disable this rather than silently doing
@@ -105,8 +111,7 @@ export class QueryPanel {
   }
 
   private run(): void {
-    this.errorBox.textContent = '';
-    this.errorBox.style.display = 'none';
+    this.lastSql = this.editor.value;
     postToHost({ type: 'runQuery', sql: this.editor.value });
   }
 
@@ -161,7 +166,6 @@ export class QueryPanel {
       this.lastResult.columns.join('\t'),
       ...this.lastResult.rows.map((r) => r.map((v) => (v === null ? '' : String(v))).join('\t')),
     ].join('\n');
-    const btn = this.container.querySelector('button') as HTMLButtonElement | null;
     // Prefer the Copy Result button label feedback
     const copyBtn = Array.from(this.container.querySelectorAll('button')).find(
       (b) => (b.textContent || '').includes('Copy'),
@@ -198,12 +202,11 @@ export class QueryPanel {
   private exportToNewSheet(): void {
     if (!this.lastResult) return;
     postToHost({
-      type: 'promptCreateSheet',
-      defaultName: 'Query Result',
-      data: [
-        this.lastResult.columns,
-        ...this.lastResult.rows.map((r) => r.map((v) => (v === null ? '' : String(v)))),
-      ],
+      type: 'materializeQuery',
+      sql: this.lastSql || this.editor.value,
+      sheetName: 'QueryResult',
+      columns: this.lastResult.columns,
+      rows: this.lastResult.rows,
     });
   }
 }

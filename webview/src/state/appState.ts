@@ -43,6 +43,11 @@ export class AppState {
   showGridlines = true;
   /** CSV/TSV only: spreadsheet | text | side-by-side split. */
   viewMode: 'spreadsheet' | 'text' | 'split' = 'spreadsheet';
+  /** Working tree differs from HEAD/index for this file. */
+  gitUnstaged = false;
+  gitStaged = false;
+  /** Inline cell decorations from last Git/semantic diff (key: sheet!row!col). */
+  diffHighlights: Record<string, { kind: string; before?: string; after?: string; a1: string }> = {};
   /** Raw source text for CSV/TSV preview pane. */
   textContent = '';
 
@@ -60,7 +65,11 @@ export class AppState {
     for (const l of this.listeners) l();
   }
 
-  initFromHost(init: SerializedWorkbookInit, settings: GridSettings): void {
+  initFromHost(
+    init: SerializedWorkbookInit,
+    settings: GridSettings,
+    preferredViewMode?: 'spreadsheet' | 'text' | 'split',
+  ): void {
     this.meta = init.meta;
     this.sheetOrder = init.sheetOrder;
     this.sheetSummaries = init.sheetSummaries;
@@ -69,8 +78,9 @@ export class AppState {
     this.visibleRowFilter = { [init.firstSheet.name]: null };
     this.settings = settings;
     this.showGridlines = settings.showGridlines;
-    // Default grid-only; open-with-preview command sets preferredViewMode to split.
-    this.viewMode = 'spreadsheet';
+    // Prefer host open mode (preview=split vs spreadsheet) before first notify
+    // so textPreview does not lock itself to display:none via inline style.
+    this.viewMode = preferredViewMode ?? 'spreadsheet';
     this.notify();
   }
 

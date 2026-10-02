@@ -36,11 +36,16 @@ export class TextPreview {
 
   private syncFromState(): void {
     const isCsv = appState.meta?.sourceKind === 'csv' || appState.meta?.sourceKind === 'tsv';
-    this.container.style.display =
-      isCsv && (appState.viewMode === 'text' || appState.viewMode === 'split') ? 'flex' : 'none';
+    // Clear inline display so CSS [data-view-mode] rules control visibility.
+    // (An earlier inline display:none was overriding split mode after init.)
+    if (isCsv && (appState.viewMode === 'text' || appState.viewMode === 'split')) {
+      this.container.style.display = 'flex';
+    } else {
+      this.container.style.display = 'none';
+    }
 
     if (!isCsv) return;
-    this.header.textContent = appState.meta.sourceKind === 'tsv' ? 'TSV source' : 'CSV source';
+    this.header.textContent = appState.meta?.sourceKind === 'tsv' ? 'TSV source' : 'CSV source';
 
     // Avoid overwriting while the user is typing in this pane.
     if (!this.applyingFromHost && document.activeElement === this.textarea) return;

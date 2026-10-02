@@ -157,18 +157,3 @@ export class GridContextMenu {
 }
 
 
-function rangeLabel(range: { startRow: number; startCol: number; endRow: number; endCol: number }): string {
-  const col = (i: number) => {
-    let n = i + 1;
-    let s = '';
-    while (n > 0) {
-      const rem = (n - 1) % 26;
-      s = String.fromCharCode(65 + rem) + s;
-      n = Math.floor((n - 1) / 26);
-    }
-    return s;
-  };
-  const a = `${col(range.startCol)}${range.startRow + 1}`;
-  const b = `${col(range.endCol)}${range.endRow + 1}`;
-  return a === b ? a : `${a}:${b}`;
-}

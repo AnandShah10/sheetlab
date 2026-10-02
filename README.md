@@ -261,3 +261,35 @@ webview/src/
 This extension was built to bring the joy of spreadsheet productivity into every developer's favorite editor. Thank you for being part of the community!
 
 *SheetLab — Because sometimes you just need a spreadsheet without leaving VS Code.*
+
+## CLI (CI)
+
+After `npm run build`:
+
+```bash
+node dist/cli.js lint ./workbook.xlsx
+node dist/cli.js test ./workbook.xlsx --tests ./.sheetlab/tests
+```
+
+Exit code `1` means lint/test/validation failures. See [docs/cli.md](docs/cli.md).
+
+## SheetLab as code
+
+Treat workbooks like source:
+
+| Step | How |
+|------|-----|
+| Inspect | Tools → Lint / Profile / Trace / Lineage |
+| Query | Query panel → **Materialize to Sheet** (undoable; lineage embedded in file) |
+| Transform | Record pipelines under `.sheetlab/pipelines/` |
+| Test | `.sheetlab/tests/*.json` or `node dist/cli.js test …` |
+| Review | Tools → Git (HEAD / commit / two commits / file) |
+| CI | `node dist/cli.js lint` · `test` · `validate` (exit 1 on failure) |
+
+Lineage for query-derived sheets is stored:
+
+1. In memory on the sheet (`sheet.lineage`)
+2. In a **very hidden** `__sheetlab_meta` worksheet inside the XLSX
+3. Optionally as `.sheetlab/lineage/<name>.json` sidecar
+
+See [docs/FEATURES.md](docs/FEATURES.md) and [docs/cli.md](docs/cli.md).

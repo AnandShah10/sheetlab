@@ -120,6 +120,11 @@ new Toolbar(toolbarEl, {
   onAnalyzeWorkbook: () => analysisPanel.requestProfile(),
   onExplainCell: () => analysisPanel.requestExplain(),
   onOpenAnalysis: () => analysisPanel.toggle(),
+  onDiffVsHead: () => {
+    analysisPanel.open();
+    // Semantic highlights on grid + list (working tree vs HEAD)
+    postToHost({ type: 'runHostCommand', command: 'sheetlab.highlightGitChanges' });
+  },
 });
 
 nameBox.setOnNavigate((range) => {
@@ -170,6 +175,11 @@ document.addEventListener('keydown', (e) => {
 
 onHostMessage((msg) => {
   switch (msg.type) {
+    case 'applyPipeline': {
+      // Host posted pipeline apply — forward to host handler (editor has undo stack)
+      postToHost(msg);
+      break;
+    }
     case 'forceNavigate': {
       if (msg.sheetName !== appState.activeSheet) {
         postToHost({ type: 'switchSheet', sheetName: msg.sheetName });
@@ -184,11 +194,40 @@ onHostMessage((msg) => {
       grid.scrollToCell(msg.row, msg.col);
       break;
     }
+    case 'diffHighlights': {
+      if (msg.clear) {
+        appState.diffHighlights = {};
+      } else {
+        const map: typeof appState.diffHighlights = {};
+        for (const e of msg.entries ?? []) {
+          map[`${e.sheet}!${e.row}!${e.col}`] = {
+            kind: e.kind,
+            before: e.before,
+            after: e.after,
+            a1: e.a1,
+          };
+        }
+        appState.diffHighlights = map;
+      }
+      appState.notify();
+      grid.reset();
+      break;
+    }
+    case 'gitFileStatus': {
+      appState.gitUnstaged = msg.unstaged;
+      appState.gitStaged = msg.staged;
+      appState.notify();
+      break;
+    }
     case 'forceViewMode': {
       appState.viewMode = msg.mode;
       root.dataset.viewMode = msg.mode;
       appState.notify();
-      requestAnimationFrame(() => grid.reset());
+      // Layout after mode change so split panes size correctly
+      requestAnimationFrame(() => {
+        grid.reset();
+        window.dispatchEvent(new Event('resize'));
+      });
       break;
     }
     case 'textContent': {
@@ -209,14 +248,12 @@ onHostMessage((msg) => {
       break;
     }
     case 'init': {
-      appState.initFromHost(msg.workbook, msg.settings);
-      if (msg.preferredViewMode) {
-        appState.viewMode = msg.preferredViewMode;
-      }
+      appState.initFromHost(msg.workbook, msg.settings, msg.preferredViewMode);
       if (msg.textContent != null) {
         textPreview.setTextFromHost(msg.textContent);
       }
       root.dataset.viewMode = appState.viewMode;
+      appState.notify();
       sheetTabs.render();
       grid.reset();
       break;
@@ -252,8 +289,12 @@ onHostMessage((msg) => {
       break;
     }
     case 'filterResult': {
-      appState.visibleRowFilter[msg.sheetName] = new Set(msg.visibleRows);
+      // col < 0 is "clear filter" from host
+      appState.visibleRowFilter[msg.sheetName] =
+        msg.col < 0 ? null : new Set(msg.visibleRows);
       appState.notify();
+      // Force grid row-offset rebuild for collapsed filtered rows
+      grid.reset();
       break;
     }
     case 'sheetMeta': {

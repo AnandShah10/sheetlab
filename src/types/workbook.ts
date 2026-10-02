@@ -104,6 +104,14 @@ export interface Worksheet {
   hidden?: boolean;
   freezePane?: FreezePane;
   tables?: ExcelTableMeta[];
+  /** Provenance when sheet was created from a query / pipeline (not written to Excel binary yet). */
+  lineage?: {
+    kind: 'query' | 'pipeline' | 'selection';
+    sql?: string;
+    pipelineName?: string;
+    sourceSheet?: string;
+    createdAt: string;
+  };
 }
 
 export type SourceKind = 'xlsx' | 'xls' | 'xlsm' | 'csv' | 'tsv' | 'ods';
@@ -181,7 +189,18 @@ export type HostToWebviewMessage =
   | { type: 'forceViewMode'; mode: 'spreadsheet' | 'text' | 'split' }
   | { type: 'analysisTraceResult'; direction: 'precedents' | 'dependents'; tree: unknown; origin: { sheetName: string; row: number; col: number } }
   | { type: 'analysisDiagnostics'; diagnostics: unknown[] }
-  | { type: 'analysisProfile'; profile: unknown };
+  | { type: 'analysisProfile'; profile: unknown }
+  | { type: 'analysisExplanation'; explanation: unknown }
+  | { type: 'analysisGitDiff'; note: string; diffs: unknown[] }
+  | { type: 'loadQuerySql'; sql: string; name?: string }
+  | { type: 'analysisTestResults'; suiteName: string; results: unknown[] }
+  | { type: 'analysisWorkbookExplanation'; text: string }
+  | { type: 'analysisLineage'; root: unknown }
+  | { type: 'analysisFixProposals'; proposals: unknown[] }
+  | { type: 'gitFileStatus'; unstaged: boolean; staged: boolean }
+  | { type: 'diffHighlights'; note: string; entries: Array<{ sheet: string; row: number; col: number; a1: string; kind: string; before?: string; after?: string }>; clear?: boolean }
+  | { type: 'forceNavigate'; sheetName: string; row: number; col: number }
+  | { type: 'applyPipeline'; label?: string; steps: Array<{ sheetName: string; range: CellRange; operation: CleanupOperation }> };
 
 /** Focus/toggle actions triggered from the Command Palette or keybindings, routed to whichever SheetLab panel is active. */
 export type UiCommand =
@@ -254,7 +273,14 @@ export type WebviewToHostMessage =
   | { type: 'runLinter' }
   | { type: 'runProfile' }
   | { type: 'explainCell'; sheetName: string; row: number; col: number }
-  | { type: 'runHostCommand'; command: string };
+  | { type: 'runHostCommand'; command: string }
+  | { type: 'applyPipeline'; label?: string; steps: Array<{ sheetName: string; range: CellRange; operation: CleanupOperation }> }
+  | { type: 'showLineage'; sheetName: string; row: number; col: number }
+  | { type: 'proposeColumnFixes'; sheetName: string; row: number; col: number }
+  | { type: 'applyCellFixes'; fixes: Array<{ sheetName: string; row: number; col: number; raw: string }> }
+  | { type: 'materializeQuery'; sql: string; sheetName?: string; columns: string[]; rows: (string | number | boolean | null)[][] }
+  | { type: 'uiCommand'; command: UiCommand }
+  | { type: 'revertDiffCell'; sheetName: string; row: number; col: number; raw: string; kind?: string };
 
 export interface SerializedWorkbookInit {
   meta: WorkbookMeta;

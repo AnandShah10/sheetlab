@@ -1,8 +1,8 @@
 {
   "name": "sheetlab",
-  "displayName": "SheetLab — Excel Viewer & Query",
+  "displayName": "SheetLab \u2014 Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM/ODS inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.3.5",
+  "version": "0.5.14",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -53,7 +53,14 @@
     "onCommand:sheetlab.runDataValidation",
     "onCommand:sheetlab.compareWithHead",
     "onCommand:sheetlab.openTools",
-    "onCommand:sheetlab.runWorkbookTests"
+    "onCommand:sheetlab.runWorkbookTests",
+    "onCommand:sheetlab.compareWithFile",
+    "onCommand:sheetlab.explainWorkbook",
+    "onCommand:sheetlab.compareWithCommit",
+    "onCommand:sheetlab.compareTwoCommits",
+    "onCommand:sheetlab.highlightGitChanges",
+    "onCommand:sheetlab.clearDiffHighlights",
+    "onCommand:sheetlab.openNativeGitDiff"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -310,6 +317,41 @@
       {
         "command": "sheetlab.runWorkbookTests",
         "title": "Run Workbook Tests",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.compareWithFile",
+        "title": "Compare Workbook with File\u2026",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.explainWorkbook",
+        "title": "Explain Workbook",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.compareWithCommit",
+        "title": "Compare Workbook with Commit\u2026",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.compareTwoCommits",
+        "title": "Compare Two Commits\u2026",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.highlightGitChanges",
+        "title": "Highlight Changes vs HEAD",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.clearDiffHighlights",
+        "title": "Clear Diff Highlights",
+        "category": "SheetLab"
+      },
+      {
+        "command": "sheetlab.openNativeGitDiff",
+        "title": "Open VS Code Git Diff",
         "category": "SheetLab"
       }
     ],
@@ -587,7 +629,8 @@
     "test:unit": "node ./tests/runTest.js",
     "test:perf": "ts-node tests/performance/run.ts",
     "package": "vsce package",
-    "test:mocha": "mocha -r ts-node/register \"tests/unit/**/*.test.ts\""
+    "test:mocha": "mocha -r ts-node/register \"tests/unit/**/*.test.ts\"",
+    "cli": "node dist/cli.js"
   },
   "dependencies": {
     "exceljs": "^3.4.0",
@@ -610,5 +653,8 @@
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.0"
+  },
+  "bin": {
+    "sheetlab": "./dist/cli.js"
   }
 }

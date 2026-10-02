@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getFileGitStatus } from '../../services/gitStatus';
 import {
   CellRange,
   FilterSpec,
@@ -67,14 +68,18 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
     // Always openWith so VS Code switches from the text editor to the custom editor.
     await vscode.commands.executeCommand('vscode.openWith', uri, CsvSpreadsheetEditorProvider.viewType);
     // Panel may still be the previous one (retainContextWhenHidden) — force mode on it.
-    const panel = CsvSpreadsheetEditorProvider.panelsByUri.get(key) ?? existing;
-    if (panel) {
+    const push = (panel: vscode.WebviewPanel) => {
       panel.reveal(panel.viewColumn, false);
       panel.webview.postMessage({ type: 'forceViewMode', mode });
-      // Second tick: webview may still be handling reveal/focus.
-      setTimeout(() => {
-        panel.webview.postMessage({ type: 'forceViewMode', mode });
-      }, 50);
+    };
+    const panel = CsvSpreadsheetEditorProvider.panelsByUri.get(key) ?? existing;
+    if (panel) {
+      push(panel);
+      // Webview may still be bootstrapping; preferredViewMode on init is the
+      // reliable path, but re-push a few times for already-open panels.
+      setTimeout(() => push(panel), 50);
+      setTimeout(() => push(panel), 200);
+      setTimeout(() => push(panel), 500);
     }
   }
 
@@ -108,7 +113,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
     const post = (msg: HostToWebviewMessage) => panel.webview.postMessage(msg);
     const focusSub = trackPanelFocus(panel, post, {
       getWorkbook: () => ({
-        meta: { sourceKind: sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv', sourcePath: document.uri.fsPath, sheetOrder: [sync.getWorksheet().name] },
+        meta: { sourceKind: sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv', sourcePath: sync.getDocumentUri().fsPath, sheetOrder: [sync.getWorksheet().name] },
         sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
       }),
       getActiveSheetName: () => sync.getWorksheet().name,
@@ -210,6 +215,9 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
             },
           },
         });
+        void getFileGitStatus(session.sync.getDocumentUri().fsPath).then((status) => {
+          post({ type: 'gitFileStatus', unstaged: status.unstaged, staged: status.staged });
+        });
         return;
       }
 
@@ -299,6 +307,11 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         return;
       }
 
+      case 'clearFilter': {
+        post({ type: 'filterResult', sheetName: msg.sheetName, col: -1, visibleRows: [] });
+        return;
+      }
+
       case 'cleanData': {
         const before = clone(sync.getWorksheet());
         const cleaned = applyCleanup(sync.getWorksheet(), msg.range as CellRange, msg.operation);
@@ -311,7 +324,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
 
       case 'undo': {
         const entry = undoStack.undo();
-        if (entry) {
+        if (entry && entry.kind !== 'composite' && entry.kind !== 'sheetCreate') {
           await sync.commitWorksheet(entry.before);
           resyncActiveSheet();
         }
@@ -321,7 +334,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
 
       case 'redo': {
         const entry = undoStack.redo();
-        if (entry) {
+        if (entry && entry.kind !== 'composite' && entry.kind !== 'sheetCreate') {
           await sync.commitWorksheet(entry.after);
           resyncActiveSheet();
         }
@@ -333,7 +346,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         const wb = {
           meta: {
             sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
-            sourcePath: document.uri.fsPath,
+            sourcePath: sync.getDocumentUri().fsPath,
             sheetOrder: [sync.getWorksheet().name],
           },
           sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
@@ -347,7 +360,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         const wb = {
           meta: {
             sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
-            sourcePath: document.uri.fsPath,
+            sourcePath: sync.getDocumentUri().fsPath,
             sheetOrder: [sync.getWorksheet().name],
           },
           sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
@@ -361,7 +374,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         const wb = {
           meta: {
             sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
-            sourcePath: document.uri.fsPath,
+            sourcePath: sync.getDocumentUri().fsPath,
             sheetOrder: [sync.getWorksheet().name],
           },
           sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
@@ -374,7 +387,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         const wb = {
           meta: {
             sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
-            sourcePath: document.uri.fsPath,
+            sourcePath: sync.getDocumentUri().fsPath,
             sheetOrder: [sync.getWorksheet().name],
           },
           sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
@@ -387,7 +400,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         const wb = {
           meta: {
             sourceKind: (sync.getDialect().delimiter === '\t' ? 'tsv' : 'csv') as 'csv' | 'tsv',
-            sourcePath: document.uri.fsPath,
+            sourcePath: sync.getDocumentUri().fsPath,
             sheetOrder: [sync.getWorksheet().name],
           },
           sheets: { [sync.getWorksheet().name]: sync.getWorksheet() },
@@ -400,6 +413,25 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         );
         post({ type: 'analysisTraceResult', direction: 'precedents', tree, origin: addr });
         if (diags.length) post({ type: 'analysisDiagnostics', diagnostics: diags });
+        return;
+      }
+
+      case 'uiCommand': {
+        post({ type: 'uiCommand', command: msg.command });
+        return;
+      }
+
+
+      case 'revertDiffCell': {
+        const before = clone(sync.getWorksheet());
+        const next = clone(sync.getWorksheet());
+        setCellRaw(next, msg.row, msg.col, msg.kind === 'added' ? '' : msg.raw);
+        undoStack.push({ sheetName: next.name, before, after: clone(next), label: 'Revert cell to HEAD' });
+        await sync.commitWorksheet(next);
+        resyncActiveSheet();
+        post({ type: 'undoRedoState', canUndo: undoStack.canUndo(), canRedo: undoStack.canRedo() });
+        post({ type: 'dirtyChanged', dirty: sync.isDirty() });
+        pushTextContent(session, post);
         return;
       }
 

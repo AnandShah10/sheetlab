@@ -4,6 +4,137 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.14]
+
+### Added
+- **GitHub-style Changes view** in Tools: unified − / + lines per cell, kind filter, Go to cell, **Revert to HEAD**
+- **Refresh** after revert re-runs compare so the diff list and grid highlights update
+- Stronger **inline cell coloring** on the grid for added / removed / changed cells
+
+### Fixed
+- Diff highlights applied when the Tools list opens (not only via a separate message)
+- Changelog entries for 0.5.8 and 0.5.9 restored
+
+## [0.5.13]
+
+### Added
+- Inline cell highlights for Git/semantic diffs
+- Highlight changes vs HEAD; VS Code native Diff; Clear highlights
+
+### Fixed
+- Compare uses working tree on disk vs HEAD (correct before/after)
+
+## [0.5.12]
+
+### Added
+- **Diff vs HEAD** toolbar button when the file has unstaged/staged Git changes
+
+## [0.5.11]
+
+### Fixed
+- Filter tool (header visible, dense scan, collapse filtered rows)
+- Stale webview `prompt()` / preview mode
+- uniqueColumn header names (e.g. `id`) not treated as column letters
+
+### Changed
+- Compare / Git diff list color by kind
+
+## [0.5.10]
+
+### Fixed
+- Rebuilt `media/webview.js` so host dialogs and preview/split mode ship
+
+## [0.5.9]
+
+### Fixed
+- **uniqueColumn** resolution: match header names before A1 letters
+- **CSV/TSV Preview mode**: preferred view mode applied before first paint; text pane no longer stuck with `display:none`
+- Stronger `forceViewMode` retries when opening Preview
+
+## [0.5.8]
+
+### Fixed
+- TypeScript: `excelReader` lineage payload after `eachSheet` callback (control-flow narrowing)
+- TypeScript: undo stack tests use `'before' in entry` narrowing
+- TypeScript: unused `btn` in query panel
+
+## [0.5.7]
+
+### Fixed
+- TypeScript compile errors across protocol, undo types, CSV `document.uri`, Tools panel methods
+
+## [0.5.6]
+
+### Added
+- **XLSX-embedded lineage**: hidden `__sheetlab_meta` sheet written on save; restored on open (alongside `.sheetlab/lineage/` sidecar)
+- README section: “SheetLab as code”
+
+## [0.5.5]
+
+### Added
+- **Materialize undo**: Ctrl+Z after materialize removes the query result sheet (sheetCreate undo entry)
+- **Lineage sidecar**: `.sheetlab/lineage/<workbook-basename>.json` written on save / materialize; reloaded with the workbook
+- `docs/FEATURES.md` feature map
+
+## [0.5.4]
+
+### Added
+- **Materialize query → sheet** with lineage metadata (`sheet.lineage` + provenance comment row)
+- Query runs recorded in history (for lineage)
+- Lineage view shows **sheet origin** when the active sheet was created from a query
+
+### Notes
+- Analysis graph already invalidates on every `markDirty` (incremental rebuild on next use)
+
+## [0.5.3]
+
+### Added
+- **Fix column**: multi-cell formula outlier preview + Apply selected / Apply all (one composite undo)
+- **Query history** in lineage (session + `.sheetlab/query-history.json`)
+- **Compare two commits** of the same file (Tools → Git → 2 Commits…)
+
+## [0.5.2]
+
+### Added
+- **Lineage** for active cell: formula precedents + pipeline steps covering the cell (Tools → Lineage)
+- **Pipeline replay** applies inside the editor as **one composite undo** (Ctrl+Z reverts the whole run)
+- **Compare with Commit…** — pick from recent `git log` for the file
+
+## [0.5.1]
+
+### Added
+- **Compare with File…** (Tools → Git) — semantic diff vs another workbook
+- Git/file diff UI: **Prev / Next**, filter by change kind, click to navigate
+- **Explain Workbook** — structural overview in Tools (no invented business meaning)
+- Stronger tests: `uniqueColumn`, `rangeNoErrors`, `notEquals`, `formulaContains`
+- Test results rendered in **Tools → QA** (click failure to jump)
+
+## [0.5.0]
+
+### Added — CLI / CI
+- **`sheetlab` CLI** (`dist/cli.js`): `lint`, `test`, `profile`, `validate`
+- Exit codes: `0` ok, `1` check failures, `2` usage/load errors
+- Docs: `docs/cli.md`
+- `package.json` `bin.sheetlab` → `./dist/cli.js`
+
+## [0.4.1]
+
+### Improved — Tools panel
+- **Resizable** Tools panel (drag left edge); width remembered in `localStorage`
+- **Thinner scrollbars** (6px) inside Tools results
+
+### Added
+- **Lineage** chip (dependency tree via precedents)
+- **Safe assisted fix**: Explain may propose a formula from the cell above when this cell is an outlier; **Apply** uses normal `editCell` (undoable)
+
+## [0.4.0]
+
+### Added
+- **VS Code Problems panel**: Run Linter publishes diagnostics to the Problems view
+- **Explain Cell** evidence engine: neighbor formula patterns, local lint, hardcoded-among-formulas, dep counts — rendered in Tools
+- **Git vs HEAD** results list in Tools (click a change to navigate); falls back to modal if no panel
+- **Run Saved Query** loads SQL into the query editor (not only a copy dialog)
+
 ## [0.3.5]
 
 ### Improved — Tools panel layout

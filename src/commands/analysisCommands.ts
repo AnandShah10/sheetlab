@@ -5,6 +5,7 @@ import { createWorkbookSnapshot, diffSnapshots } from '../analysis/snapshot';
 import { toA1 } from '../utils/cellRef';
 import { AnalysisService } from '../services/analysisService';
 import { runWorkbookTests } from '../testing/testRunner';
+import { explainWorkbook } from '../analysis/explainWorkbook';
 import { WorkbookTestFile } from '../testing/types';
 
 export function registerAnalysisCommands(_context: vscode.ExtensionContext): vscode.Disposable[] {
@@ -109,11 +110,27 @@ export function registerAnalysisCommands(_context: vscode.ExtensionContext): vsc
       const file = JSON.parse(Buffer.from(raw).toString('utf8')) as WorkbookTestFile;
       const results = runWorkbookTests(wb, file);
       const failed = results.filter((r) => !r.passed);
-      const lines = results.map((r) => `${r.passed ? '✓' : '✗'} ${r.name}${r.passed ? '' : ' — ' + r.message}`);
+      activePanelRegistry.postRaw({
+        type: 'analysisTestResults',
+        suiteName: file.name || pick.label,
+        results,
+      });
+      activePanelRegistry.send('openTools');
       void vscode.window.showInformationMessage(
-        [`${file.name}: ${results.length - failed.length}/${results.length} passed`, ...lines.slice(0, 12)].join('\n'),
-        { modal: true },
+        `${file.name}: ${results.length - failed.length}/${results.length} passed — see Tools panel`,
       );
+    }),
+
+    vscode.commands.registerCommand('sheetlab.explainWorkbook', async () => {
+      const wb = activePanelRegistry.getActiveWorkbook();
+      if (!wb) {
+        void vscode.window.showWarningMessage('Open a spreadsheet in SheetLab first.');
+        return;
+      }
+      const text = explainWorkbook(wb);
+      activePanelRegistry.postRaw({ type: 'analysisWorkbookExplanation', text });
+      activePanelRegistry.send('openTools');
+      void vscode.window.showInformationMessage('Workbook explanation is in the Tools panel.');
     }),
 
     vscode.commands.registerCommand('sheetlab.compareSnapshots', async () => {

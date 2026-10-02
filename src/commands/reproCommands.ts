@@ -2,12 +2,15 @@ import * as vscode from 'vscode';
 import { transformationRecorder } from '../pipelines/recorder';
 import { savePipeline, listPipelines, loadPipeline } from '../pipelines/pipelineStore';
 import { saveQuery, listQueries, loadQuery } from '../pipelines/queryStore';
-import { createEmptyPipeline } from '../pipelines/types';
-import { runValidation, ValidationConfig, ColumnRule } from '../validation/rules';
+import { runValidation, ValidationConfig } from '../validation/rules';
 import { activePanelRegistry } from '../services/activePanelRegistry';
-import { applyCleanup } from '../data/cleanup';
-import { getSheet } from '../workbook/workbookModel';
-import { compareWorkbookToHead } from '../analysis/gitCompare';
+import { compareWorkbookToHead, openNativeGitDiff } from '../analysis/gitCompare';
+import { parseCsv } from '../csv/csvReader';
+import { postDiffsToActivePanel, clearDiffHighlights } from '../services/diffHighlightPost';
+import { compareTwoWorkbooks } from '../analysis/fileCompare';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+const execFileAsync = promisify(execFile);
 import { readXlsxWorkbook } from '../excel/excelReader';
 import { readLegacyXls } from '../excel/legacyXlsReader';
 import * as path from 'path';
@@ -78,25 +81,23 @@ export function registerReproCommands(_context: vscode.ExtensionContext): vscode
       );
       if (!pick) return;
       const pipeline = await loadPipeline(pick.uri);
-      const pair = activePanelRegistry.getActiveWorkbookAndSheet();
-      if (!pair) {
+      if (!activePanelRegistry.hasActive()) {
         void vscode.window.showWarningMessage('Open a spreadsheet in SheetLab first.');
         return;
       }
-      let applied = 0;
-      for (const step of pipeline.steps) {
-        const sheet = pair.workbook.sheets[step.sheetName];
-        if (!sheet) continue;
-        const cleaned = applyCleanup(sheet, step.range, step.operation);
-        pair.workbook.sheets[step.sheetName] = cleaned;
-        applied++;
+      // Apply inside the editor so undo is a single composite step + webview resyncs
+      const ok = activePanelRegistry.postRaw({
+        type: 'applyPipeline',
+        label: pipeline.name,
+        steps: pipeline.steps.map((s) => ({
+          sheetName: s.sheetName,
+          range: s.range,
+          operation: s.operation,
+        })),
+      });
+      if (!ok) {
+        void vscode.window.showWarningMessage('Could not reach the SheetLab editor to apply the pipeline.');
       }
-      // Ask webview to refresh via linter path — profile forces analysis; use dirty via save path is heavy.
-      // User should see data change after resync — post a mild ui refresh
-      activePanelRegistry.send('runProfile');
-      void vscode.window.showInformationMessage(
-        `Applied ${applied}/${pipeline.steps.length} steps from "${pipeline.name}". Undo is per prior edits; reload file if needed to discard.`,
-      );
     }),
 
     vscode.commands.registerCommand('sheetlab.saveQuery', async () => {
@@ -128,11 +129,9 @@ export function registerReproCommands(_context: vscode.ExtensionContext): vscode
       );
       if (!pick) return;
       const q = await loadQuery(pick.uri);
-      // Open query panel and rely on user run — or post runQuery if we add to protocol
       activePanelRegistry.send('openQuery');
-      void vscode.window.showInformationMessage(`Query "${q.name}":\n${q.sql}`, { modal: true }, 'Copy SQL').then((c) => {
-        if (c === 'Copy SQL') void vscode.env.clipboard.writeText(q.sql);
-      });
+      activePanelRegistry.postRaw({ type: 'loadQuerySql', sql: q.sql, name: q.name });
+      void vscode.window.showInformationMessage(`Loaded query "${q.name}" into the query panel.`);
     }),
 
     vscode.commands.registerCommand('sheetlab.runDataValidation', async () => {
@@ -173,6 +172,180 @@ export function registerReproCommands(_context: vscode.ExtensionContext): vscode
       activePanelRegistry.send('runLinter');
     }),
 
+    vscode.commands.registerCommand('sheetlab.compareTwoCommits', async () => {
+      const pair = activePanelRegistry.getActiveWorkbookAndSheet();
+      const wb = pair?.workbook;
+      if (!wb?.meta.sourcePath) {
+        void vscode.window.showWarningMessage('Open a spreadsheet in SheetLab first.');
+        return;
+      }
+      const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!folder) {
+        void vscode.window.showWarningMessage('Open a workspace folder (Git repo).');
+        return;
+      }
+      let relative = wb.meta.sourcePath;
+      try {
+        const { stdout: root } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd: folder });
+        const top = root.trim().replace(/\\/g, '/');
+        const full = wb.meta.sourcePath.replace(/\\/g, '/');
+        relative = full.startsWith(top) ? full.slice(top.length).replace(/^\//, '') : wb.meta.sourcePath;
+      } catch {
+        void vscode.window.showWarningMessage('Not a Git repository.');
+        return;
+      }
+      let lines: string[];
+      try {
+        const { stdout } = await execFileAsync(
+          'git',
+          ['log', '-30', '--pretty=format:%h%x09%s', '--', relative],
+          { cwd: folder },
+        );
+        lines = stdout.split('\n').filter(Boolean);
+      } catch {
+        void vscode.window.showWarningMessage('Could not read git log.');
+        return;
+      }
+      if (lines.length < 2) {
+        void vscode.window.showInformationMessage('Need at least two commits for this file.');
+        return;
+      }
+      const items = lines.map((line) => {
+        const [hash, ...rest] = line.split('\t');
+        return { label: hash, description: rest.join(' '), hash };
+      });
+      const older = await vscode.window.showQuickPick(items, { placeHolder: 'Older commit (before)…' });
+      if (!older) return;
+      const newer = await vscode.window.showQuickPick(
+        items.filter((i) => i.hash !== older.hash),
+        { placeHolder: 'Newer commit (after)…' },
+      );
+      if (!newer) return;
+      try {
+        const load = async (hash: string) => {
+          const { stdout } = await execFileAsync('git', ['show', `${hash}:${relative}`], {
+            cwd: folder,
+            encoding: 'buffer',
+            maxBuffer: 64 * 1024 * 1024,
+          });
+          const buf = Buffer.from(stdout);
+          const ext = path.extname(relative).toLowerCase();
+          if (ext === '.xls') return readLegacyXls(buf, wb.meta.sourcePath, 500000).workbook;
+          return (await readXlsxWorkbook(buf, wb.meta.sourcePath, ext === '.xlsm' ? 'xlsm' : 'xlsx', { maxRows: 500000 })).workbook;
+        };
+        const before = await load(older.hash);
+        const after = await load(newer.hash);
+        const result = compareTwoWorkbooks(before, after, `${older.hash} → ${newer.hash}`);
+        activePanelRegistry.postRaw({ type: 'analysisGitDiff', note: result.note, diffs: result.diffs });
+        activePanelRegistry.send('openTools');
+        void vscode.window.showInformationMessage(result.note + ' — see Tools panel');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(`Compare commits failed: ${msg}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('sheetlab.compareWithCommit', async () => {
+      const pair = activePanelRegistry.getActiveWorkbookAndSheet();
+      const wb = pair?.workbook;
+      if (!wb?.meta.sourcePath) {
+        void vscode.window.showWarningMessage('Open a spreadsheet in SheetLab first.');
+        return;
+      }
+      const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!folder) {
+        void vscode.window.showWarningMessage('Open a workspace folder (Git repo).');
+        return;
+      }
+      let relative = wb.meta.sourcePath;
+      try {
+        const { stdout: root } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd: folder });
+        const top = root.trim().replace(/\\/g, '/');
+        const full = wb.meta.sourcePath.replace(/\\/g, '/');
+        relative = full.startsWith(top) ? full.slice(top.length).replace(/^\//, '') : wb.meta.sourcePath;
+      } catch {
+        void vscode.window.showWarningMessage('Not a Git repository.');
+        return;
+      }
+      let logOut: string;
+      try {
+        const { stdout } = await execFileAsync(
+          'git',
+          ['log', '-20', '--pretty=format:%h%x09%s', '--', relative],
+          { cwd: folder },
+        );
+        logOut = stdout;
+      } catch {
+        void vscode.window.showWarningMessage('Could not read git log for this file.');
+        return;
+      }
+      const lines = logOut.split('\n').filter(Boolean);
+      if (!lines.length) {
+        void vscode.window.showInformationMessage('No commits found for this file.');
+        return;
+      }
+      const pick = await vscode.window.showQuickPick(
+        lines.map((line) => {
+          const [hash, ...rest] = line.split('\t');
+          return { label: hash, description: rest.join(' '), hash };
+        }),
+        { placeHolder: 'Compare working tree with commit…' },
+      );
+      if (!pick) return;
+      try {
+        const { stdout } = await execFileAsync('git', ['show', `${pick.hash}:${relative}`], {
+          cwd: folder,
+          encoding: 'buffer',
+          maxBuffer: 64 * 1024 * 1024,
+        });
+        const buf = Buffer.from(stdout);
+        const ext = path.extname(relative).toLowerCase();
+        const other =
+          ext === '.xls'
+            ? readLegacyXls(buf, wb.meta.sourcePath, 500000).workbook
+            : (await readXlsxWorkbook(buf, wb.meta.sourcePath, ext === '.xlsm' ? 'xlsm' : 'xlsx', { maxRows: 500000 })).workbook;
+        const result = compareTwoWorkbooks(other, wb, `vs ${pick.hash}`);
+        activePanelRegistry.postRaw({ type: 'analysisGitDiff', note: result.note, diffs: result.diffs });
+        activePanelRegistry.send('openTools');
+        void vscode.window.showInformationMessage(result.note + ' — see Tools panel');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(`Compare with commit failed: ${msg}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('sheetlab.compareWithFile', async () => {
+      const pair = activePanelRegistry.getActiveWorkbookAndSheet();
+      const wb = pair?.workbook;
+      if (!wb) {
+        void vscode.window.showWarningMessage('Open a spreadsheet in SheetLab first.');
+        return;
+      }
+      const picked = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        filters: { Spreadsheets: ['xlsx', 'xlsm', 'xls', 'ods', 'csv', 'tsv'] },
+        title: 'Compare current workbook with…',
+      });
+      if (!picked?.[0]) return;
+      const otherPath = picked[0].fsPath;
+      const buf = await vscode.workspace.fs.readFile(picked[0]);
+      const nodeBuf = Buffer.from(buf);
+      const ext = path.extname(otherPath).toLowerCase();
+      let other;
+      if (ext === '.xls') {
+        other = readLegacyXls(nodeBuf, otherPath, 500000).workbook;
+      } else if (ext === '.csv' || ext === '.tsv') {
+        void vscode.window.showWarningMessage('CSV/TSV file compare via this dialog is limited; prefer xlsx for Git-style compare.');
+        return;
+      } else {
+        other = (await readXlsxWorkbook(nodeBuf, otherPath, ext === '.xlsm' ? 'xlsm' : 'xlsx', { maxRows: 500000 })).workbook;
+      }
+      const result = compareTwoWorkbooks(other, wb, `file vs ${path.basename(otherPath)}`);
+      activePanelRegistry.postRaw({ type: 'analysisGitDiff', note: result.note, diffs: result.diffs });
+      activePanelRegistry.send('openTools');
+      void vscode.window.showInformationMessage(result.note + ' — see Tools panel');
+    }),
+
     vscode.commands.registerCommand('sheetlab.compareWithHead', async () => {
       const pair = activePanelRegistry.getActiveWorkbookAndSheet();
       const wb = pair?.workbook;
@@ -185,22 +358,49 @@ export function registerReproCommands(_context: vscode.ExtensionContext): vscode
         void vscode.window.showWarningMessage('Workbook has no source path to compare.');
         return;
       }
-      const result = await compareWorkbookToHead(wb, filePath, async (buf, p) => {
+      const loader = async (buf: Buffer, p: string) => {
         const ext = path.extname(p).toLowerCase();
-        if (ext === '.xls') {
-          return readLegacyXls(buf, p, 500000).workbook;
+        if (ext === '.xls') return readLegacyXls(buf, p, 500000).workbook;
+        if (ext === '.csv' || ext === '.tsv') {
+          const { worksheet } = parseCsv(buf, ext === '.tsv' ? 'tsv' : 'csv', { maxRows: 500000 });
+          return {
+            meta: {
+              sourceKind: (ext === '.tsv' ? 'tsv' : 'csv') as 'csv' | 'tsv',
+              sourcePath: p,
+              sheetOrder: [worksheet.name],
+            },
+            sheets: { [worksheet.name]: worksheet },
+          };
         }
         return (await readXlsxWorkbook(buf, p, ext === '.xlsm' ? 'xlsm' : 'xlsx', { maxRows: 500000 })).workbook;
-      });
+      };
+      const result = await compareWorkbookToHead(wb, filePath, loader);
       if (!result) return;
-      const sample = result.diffs
-        .slice(0, 8)
-        .map((d) => `${d.sheet}!${d.a1} ${d.kind}: ${d.before ?? '∅'} → ${d.after ?? '∅'}`)
-        .join('\n');
+      postDiffsToActivePanel(result.note, result.diffs);
+      activePanelRegistry.send('openTools');
       void vscode.window.showInformationMessage(
-        [result.note, sample].filter(Boolean).join('\n\n'),
-        { modal: true },
+        result.note + (result.diffs.length ? ' — cells highlighted in the grid' : ''),
       );
+    }),
+
+    vscode.commands.registerCommand('sheetlab.highlightGitChanges', async () => {
+      // Same as compare, but focus on grid highlights (Tools still updated)
+      await vscode.commands.executeCommand('sheetlab.compareWithHead');
+    }),
+
+    vscode.commands.registerCommand('sheetlab.clearDiffHighlights', async () => {
+      clearDiffHighlights();
+      void vscode.window.showInformationMessage('Cleared cell diff highlights.');
+    }),
+
+    vscode.commands.registerCommand('sheetlab.openNativeGitDiff', async () => {
+      const pair = activePanelRegistry.getActiveWorkbookAndSheet();
+      const filePath = pair?.workbook?.meta?.sourcePath;
+      if (!filePath) {
+        void vscode.window.showWarningMessage('Open a spreadsheet in SheetLab first.');
+        return;
+      }
+      await openNativeGitDiff(filePath);
     }),
   ];
 }

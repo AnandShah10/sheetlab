@@ -14,11 +14,17 @@ describe('UndoStack', () => {
     assert.equal(stack.canRedo(), false);
 
     const undone = stack.undo();
-    assert.equal(undone?.before.name, 'v0');
+    assert.ok(undone && 'before' in undone);
+    if (undone && 'before' in undone) {
+      assert.equal(undone.before.name, 'v0');
+    }
     assert.equal(stack.canRedo(), true);
 
     const redone = stack.redo();
-    assert.equal(redone?.after.name, 'v1');
+    assert.ok(redone && 'after' in redone);
+    if (redone && 'after' in redone) {
+      assert.equal(redone.after.name, 'v1');
+    }
   });
 
   it('discards the redo tail when a new edit is pushed after an undo', () => {

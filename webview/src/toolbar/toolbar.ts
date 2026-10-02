@@ -19,6 +19,8 @@ export interface ToolbarCallbacks {
   onAnalyzeWorkbook?: () => void;
   onExplainCell?: () => void;
   onOpenAnalysis?: () => void;
+  /** Open semantic diff vs Git HEAD when the file has local changes. */
+  onDiffVsHead?: () => void;
   /** Called after any format/action is applied, so the caller can scroll the affected cell into view -- important since the active cell is very often scrolled off-screen when a toolbar button is clicked. */
   onActionApplied?: () => void;
 }
@@ -28,6 +30,7 @@ export class Toolbar {
   private undoBtn!: HTMLButtonElement;
   private redoBtn!: HTMLButtonElement;
   private dirtyIndicator!: HTMLSpanElement;
+  private diffBtn!: HTMLButtonElement;
 
   constructor(container: HTMLElement, private callbacks: ToolbarCallbacks) {
     this.container = container;
@@ -90,6 +93,15 @@ export class Toolbar {
     toolsGroup.dataset.role = 'analysis';
     this.container.appendChild(toolsGroup);
 
+    // Diff vs HEAD — visible when Git reports unstaged (or staged) changes
+    this.diffBtn = this.button('Diff vs HEAD', 'search', () => this.callbacks.onDiffVsHead?.());
+    this.diffBtn.classList.add('sheetlab-toolbar-diff-btn');
+    this.diffBtn.title = 'Show semantic spreadsheet diff against Git HEAD';
+    this.diffBtn.style.display = 'none';
+    const diffGroup = group(this.diffBtn);
+    diffGroup.dataset.role = 'git-diff';
+    this.container.appendChild(diffGroup);
+
     // CSV/TSV view mode toggles (hidden for Excel)
     const viewGroup = this.viewModeGroup();
     viewGroup.dataset.role = 'view-mode';
@@ -151,6 +163,17 @@ export class Toolbar {
           (btn.dataset.mode === 'split' && appState.viewMode === 'split');
         btn.classList.toggle('sheetlab-view-mode-active', isActive);
       });
+    }
+  
+    if (this.diffBtn) {
+      const show = appState.gitUnstaged || appState.gitStaged;
+      this.diffBtn.style.display = show ? '' : 'none';
+      this.diffBtn.classList.toggle('sheetlab-toolbar-diff-active', appState.gitUnstaged);
+      this.diffBtn.title = appState.gitUnstaged
+        ? 'Unstaged changes — open semantic diff vs HEAD'
+        : appState.gitStaged
+          ? 'Staged changes — open semantic diff vs HEAD'
+          : 'Diff vs HEAD';
     }
   }
 

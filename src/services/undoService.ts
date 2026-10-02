@@ -1,32 +1,43 @@
 import { Worksheet } from '../types/workbook';
 
-interface UndoEntry {
+export interface SheetUndoEntry {
+  kind?: 'sheet';
   sheetName: string;
   before: Worksheet;
   after: Worksheet;
   label: string;
 }
 
+/** One undo step that restores multiple sheets (e.g. pipeline replay). */
+export interface CompositeUndoEntry {
+  kind: 'composite';
+  label: string;
+  parts: SheetUndoEntry[];
+}
+
+/** Undo creation of a worksheet (materialize query, etc.). */
+export interface SheetCreateUndoEntry {
+  kind: 'sheetCreate';
+  label: string;
+  sheetName: string;
+  previousActiveSheet: string;
+  previousSheetOrder: string[];
+  /** Full sheet for redo */
+  sheetSnapshot: Worksheet;
+}
+
+export type UndoEntry = SheetUndoEntry | CompositeUndoEntry | SheetCreateUndoEntry;
+
 /**
- * A simple linear undo/redo stack of whole-worksheet snapshots. This is
- * intentionally coarse-grained (snapshot per logical operation — one cell
- * edit, one paste, one sort, one cleanup op) rather than per-keystroke, and
- * it is capped so pasting into a 500k-row sheet repeatedly doesn't grow
- * memory unbounded. It covers cell edits, paste, delete, sort, filter
- * application, data cleaning, and row/column operations (spec section 32).
- *
- * For CSV documents specifically, this stack works ALONGSIDE VS Code's own
- * text-document undo (see csvDocumentSync.ts) rather than replacing it —
- * each entry here corresponds to exactly one WorkspaceEdit, so Ctrl+Z in the
- * spreadsheet view and Ctrl+Z in the plain text view stay consistent.
+ * Linear undo/redo stack of worksheet snapshots, composites, or sheet-create ops.
+ * Capped so repeated ops on large sheets don't grow memory unbounded.
  */
 export class UndoStack {
   private readonly stack: UndoEntry[] = [];
-  private cursor = -1; // index of the last applied entry
+  private cursor = -1;
   private readonly maxEntries = 200;
 
   push(entry: UndoEntry): void {
-    // Discard any redo tail once a new edit is made.
     this.stack.splice(this.cursor + 1);
     this.stack.push(entry);
     if (this.stack.length > this.maxEntries) {

@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { Cell, CellFormat, Workbook } from '../types/workbook';
+import { SHEETLAB_META_SHEET, SheetlabMetaPayload } from './sheetlabMeta';
 
 /**
  * Serialize our internal Workbook model back into an XLSX/XLSM buffer.
@@ -47,6 +48,17 @@ export async function writeXlsxWorkbook(workbook: Workbook): Promise<Buffer> {
     });
 
     registerTablesBestEffort(ws, sheet);
+  }
+
+  // Persist SheetLab lineage inside the package (survives reopen in SheetLab / Excel as a hidden sheet).
+  const lineage: SheetlabMetaPayload['lineage'] = {};
+  for (const [name, sheet] of Object.entries(workbook.sheets)) {
+    if (sheet.lineage) lineage[name] = sheet.lineage;
+  }
+  if (Object.keys(lineage).length > 0) {
+    const metaWs = wb.addWorksheet(SHEETLAB_META_SHEET, { state: 'veryHidden' });
+    const payload: SheetlabMetaPayload = { version: 1, lineage };
+    metaWs.getCell(1, 1).value = JSON.stringify(payload);
   }
 
   const arrayBuffer = await wb.xlsx.writeBuffer();
