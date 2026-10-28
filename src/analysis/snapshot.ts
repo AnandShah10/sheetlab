@@ -140,5 +140,11 @@ function flatten(s: WorkbookSnapshot): Map<string, SnapshotCell> {
 
 function formatSnap(c: SnapshotCell): string {
   if (c.formula) return `=${c.formula}`;
-  return c.value === null || c.value === undefined ? '' : String(c.value);
+  if (c.value === null || c.value === undefined) return '';
+  if (typeof c.value === 'string') return c.value.trim();
+  if (typeof c.value === 'number' && Number.isFinite(c.value)) {
+    // Avoid float noise
+    return String(Math.round(c.value * 1e9) / 1e9);
+  }
+  return String(c.value);
 }

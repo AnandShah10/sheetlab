@@ -52,8 +52,7 @@ export class QueryPanel {
     const hint = document.createElement('div');
     hint.className = 'sheetlab-query-hint';
     hint.textContent =
-      'SELECT col, SUM(col2) AS total FROM SheetName WHERE col3 > 10 GROUP BY col ORDER BY total DESC LIMIT 100. ' +
-      'Not full SQL -- no joins or subqueries.';
+      'Supports JOINs: SELECT a.Name, b.Qty FROM Orders a INNER JOIN Products b ON a.ProductId = b.Id. Also WHERE, GROUP BY, ORDER BY, LIMIT.' ;
 
     this.editor = document.createElement('textarea');
     this.editor.className = 'sheetlab-query-editor';
@@ -93,9 +92,31 @@ export class QueryPanel {
     this.resultGrid = document.createElement('div');
     this.resultGrid.className = 'sheetlab-query-result-grid';
 
+    const joinBar = document.createElement('div');
+    joinBar.className = 'sheetlab-query-join-bar';
+    const templates: Array<[string, string]> = [
+      ['INNER JOIN', `SELECT *\nFROM ${appState.activeSheet || 'Sheet1'} a\nINNER JOIN Sheet2 b ON a.Id = b.Id`],
+      ['LEFT JOIN', `SELECT *\nFROM ${appState.activeSheet || 'Sheet1'} a\nLEFT JOIN Sheet2 b ON a.Id = b.Id`],
+      ['RIGHT JOIN', `SELECT *\nFROM ${appState.activeSheet || 'Sheet1'} a\nRIGHT JOIN Sheet2 b ON a.Id = b.Id`],
+      ['FULL JOIN', `SELECT *\nFROM ${appState.activeSheet || 'Sheet1'} a\nFULL JOIN Sheet2 b ON a.Id = b.Id`],
+    ];
+    for (const [label, sql] of templates) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sheetlab-tools-chip';
+      b.textContent = label;
+      b.title = 'Insert template into editor';
+      b.addEventListener('click', () => {
+        this.editor.value = sql;
+        this.editor.focus();
+      });
+      joinBar.appendChild(b);
+    }
+
     this.container.appendChild(header);
     this.container.appendChild(hint);
     this.container.appendChild(this.editor);
+    this.container.appendChild(joinBar);
     this.container.appendChild(runBtn);
     this.container.appendChild(this.errorBox);
     this.container.appendChild(actions);

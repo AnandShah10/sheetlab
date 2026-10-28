@@ -1,5 +1,9 @@
+import { addConditionalRule, clearConditionalRules } from '../../data/conditionalFormat';
 import * as vscode from 'vscode';
 import { getFileGitStatus } from '../../services/gitStatus';
+import { analyzeColumn, buildChartFromColumn } from '../../analysis/dataStats';
+import { runAdvancedAnalysis, listColumns } from '../../analysis/advancedAnalysis';
+import { runPivot } from '../../analysis/pivot';
 import {
   CellRange,
   FilterSpec,
@@ -207,7 +211,7 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
               sheetOrder: [sheet.name],
             } as unknown as Workbook['meta'],
             sheetOrder: [sheet.name],
-            sheetSummaries: { [sheet.name]: { rowCount: sheet.rowCount, colCount: sheet.colCount, columns: sheet.columns, rowMeta: sheet.rowMeta, tables: sheet.tables ?? [], freezePane: sheet.freezePane } },
+            sheetSummaries: { [sheet.name]: { rowCount: sheet.rowCount, colCount: sheet.colCount, columns: sheet.columns, rowMeta: sheet.rowMeta, tables: sheet.tables ?? [], freezePane: sheet.freezePane, conditionalFormats: sheet.conditionalFormats ?? [] } },
             firstSheet: {
               name: sheet.name,
               rows: sliceRows(sheet.rows, 0, settings.chunkSize),
@@ -383,6 +387,64 @@ export class CsvSpreadsheetEditorProvider implements vscode.CustomTextEditorProv
         post({ type: 'analysisDiagnostics', diagnostics: analysis.getDiagnostics() });
         return;
       }
+      case 'requestColumnList': {
+        const sheet = sync.getWorksheet();
+        post({ type: 'analysisColumnList', sheetName: sheet.name, columns: listColumns(sheet, 0) });
+        return;
+      }
+
+      case 'runAdvancedAnalysis': {
+        try {
+          const cfg = msg.config as import('../../analysis/advancedAnalysis').AdvancedAnalysisConfig;
+          const sheet = sync.getWorksheet();
+          const result = runAdvancedAnalysis(sheet, { ...cfg, sheetName: sheet.name });
+          post({ type: 'analysisAdvancedResult', result });
+        } catch (err) {
+          post({
+            type: 'analysisAdvancedError',
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+        return;
+      }
+
+      case 'addConditionalFormat': {
+        const sheet = sync.getWorksheet();
+        addConditionalRule(sheet, msg.rule);
+        post({ type: 'conditionalFormatsUpdated', sheetName: sheet.name, rules: sheet.conditionalFormats ?? [] });
+        return;
+      }
+      case 'clearConditionalFormats': {
+        const sheet = sync.getWorksheet();
+        clearConditionalRules(sheet);
+        post({ type: 'conditionalFormatsUpdated', sheetName: sheet.name, rules: [] });
+        return;
+      }
+      case 'runPivot': {
+        try {
+          const cfg = msg.config as import('../../analysis/pivot').PivotConfig;
+          const sheet = sync.getWorksheet();
+          post({ type: 'analysisPivotResult', result: runPivot(sheet, { ...cfg, sheetName: sheet.name }) });
+        } catch (err) {
+          post({ type: 'analysisPivotError', message: err instanceof Error ? err.message : String(err) });
+        }
+        return;
+      }
+
+      case 'runColumnStats': {
+        const sheet = sync.getWorksheet();
+        const stats = analyzeColumn(sheet, msg.col);
+        post({ type: 'analysisColumnStats', stats });
+        return;
+      }
+
+      case 'runChart': {
+        const sheet = sync.getWorksheet();
+        const chart = buildChartFromColumn(sheet, msg.col, msg.kind);
+        post({ type: 'analysisChart', chart });
+        return;
+      }
+
       case 'runProfile': {
         const wb = {
           meta: {

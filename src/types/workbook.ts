@@ -94,6 +94,30 @@ export interface FreezePane {
  * A worksheet. Rows are stored sparsely (map keyed by row index) so that
  * a 500,000-row sheet with mostly-empty regions doesn't allocate dense arrays.
  */
+/** SheetLab conditional formatting (cell-value rules). Not full Excel CF parity. */
+export type CfOperator =
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'eq'
+  | 'neq'
+  | 'between'
+  | 'contains'
+  | 'blank'
+  | 'notBlank';
+
+export interface ConditionalFormatRule {
+  id: string;
+  /** Optional A1-style range; omit = whole used range */
+  range?: CellRange;
+  operator: CfOperator;
+  value?: string | number;
+  value2?: string | number; // for between
+  style: Partial<CellFormat>;
+  stopIfTrue?: boolean;
+}
+
 export interface Worksheet {
   name: string;
   rowCount: number;
@@ -104,6 +128,8 @@ export interface Worksheet {
   hidden?: boolean;
   freezePane?: FreezePane;
   tables?: ExcelTableMeta[];
+  /** SheetLab-managed conditional formatting rules (applied in the grid). */
+  conditionalFormats?: ConditionalFormatRule[];
   /** Provenance when sheet was created from a query / pipeline (not written to Excel binary yet). */
   lineage?: {
     kind: 'query' | 'pipeline' | 'selection';
@@ -199,6 +225,14 @@ export type HostToWebviewMessage =
   | { type: 'analysisFixProposals'; proposals: unknown[] }
   | { type: 'gitFileStatus'; unstaged: boolean; staged: boolean }
   | { type: 'diffHighlights'; note: string; entries: Array<{ sheet: string; row: number; col: number; a1: string; kind: string; before?: string; after?: string }>; clear?: boolean }
+  | { type: 'analysisColumnStats'; stats: unknown }
+  | { type: 'analysisChart'; chart: unknown }
+  | { type: 'analysisAdvancedResult'; result: unknown }
+  | { type: 'analysisAdvancedError'; message: string }
+  | { type: 'analysisPivotResult'; result: unknown }
+  | { type: 'analysisPivotError'; message: string }
+  | { type: 'conditionalFormatsUpdated'; sheetName: string; rules: ConditionalFormatRule[] }
+  | { type: 'analysisColumnList'; columns: Array<{ col: number; label: string }>; sheetName: string }
   | { type: 'forceNavigate'; sheetName: string; row: number; col: number }
   | { type: 'applyPipeline'; label?: string; steps: Array<{ sheetName: string; range: CellRange; operation: CleanupOperation }> };
 
@@ -278,9 +312,17 @@ export type WebviewToHostMessage =
   | { type: 'showLineage'; sheetName: string; row: number; col: number }
   | { type: 'proposeColumnFixes'; sheetName: string; row: number; col: number }
   | { type: 'applyCellFixes'; fixes: Array<{ sheetName: string; row: number; col: number; raw: string }> }
+  | { type: 'newSheetFromSelection'; sheetName: string; range: { startRow: number; startCol: number; endRow: number; endCol: number } }
   | { type: 'materializeQuery'; sql: string; sheetName?: string; columns: string[]; rows: (string | number | boolean | null)[][] }
   | { type: 'uiCommand'; command: UiCommand }
-  | { type: 'revertDiffCell'; sheetName: string; row: number; col: number; raw: string; kind?: string };
+  | { type: 'revertDiffCell'; sheetName: string; row: number; col: number; raw: string; kind?: string }
+  | { type: 'runColumnStats'; sheetName: string; col: number }
+  | { type: 'runChart'; sheetName: string; col: number; kind: 'histogram' | 'bar' | 'line' | 'pie' }
+  | { type: 'runAdvancedAnalysis'; config: unknown }
+  | { type: 'runPivot'; config: unknown }
+  | { type: 'requestColumnList'; sheetName: string }
+  | { type: 'addConditionalFormat'; sheetName: string; rule: ConditionalFormatRule }
+  | { type: 'clearConditionalFormats'; sheetName: string };
 
 export interface SerializedWorkbookInit {
   meta: WorkbookMeta;
@@ -294,6 +336,7 @@ export interface SerializedWorkbookInit {
       rowMeta: Record<number, RowMeta>;
       tables: ExcelTableMeta[];
       freezePane?: FreezePane;
+      conditionalFormats?: ConditionalFormatRule[];
     }
   >;
   /** First chunk of rows for the initially active sheet so the grid can paint immediately. */

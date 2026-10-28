@@ -26,13 +26,24 @@ describe('queryParser', () => {
 
   it('parses GROUP BY and ORDER BY with direction', () => {
     const q = parseQuery('SELECT Department, SUM(Sales) AS T FROM Sheet1 GROUP BY Department ORDER BY T DESC');
-    assert.deepEqual(q.groupBy, ['Department']);
-    assert.deepEqual(q.orderBy, [{ column: 'T', direction: 'DESC' }]);
+    assert.equal(q.groupBy.length, 1);
+    assert.equal(q.groupBy[0].column, 'Department');
+    assert.equal(q.orderBy.length, 1);
+    assert.equal(q.orderBy[0].column, 'T');
+    assert.equal(q.orderBy[0].direction, 'DESC');
   });
 
   it('parses LIMIT', () => {
     const q = parseQuery('SELECT * FROM Sheet1 LIMIT 50');
     assert.equal(q.limit, 50);
+  });
+
+  it('parses HAVING after GROUP BY', () => {
+    const q = parseQuery('SELECT Department, SUM(Sales) AS T FROM Sheet1 GROUP BY Department HAVING T > 1000');
+    assert.equal(q.having.length, 1);
+    assert.equal(q.having[0].column, 'T');
+    assert.equal(q.having[0].op, '>');
+    assert.equal(q.having[0].value, 1000);
   });
 
   it('throws a QueryParseError with position info on malformed input', () => {

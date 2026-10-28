@@ -44,13 +44,14 @@ describe('evaluateFilter', () => {
   it('matches rows with numberRange condition', () => {
     const sheet = makeSheet();
     const matches = evaluateFilter(sheet, 1, { kind: 'numberRange', min: 28 }, 0);
-    assert.deepEqual(Array.from(matches).sort(), [1, 2]); // Charlie(35), Alice(30)
+    // Header row is always kept visible (Excel-like AutoFilter)
+    assert.deepEqual(Array.from(matches).sort((a, b) => a - b), [0, 1, 2]); // header + Charlie(35), Alice(30)
   });
 
   it('matches rows with textContains condition case-insensitively', () => {
     const sheet = makeSheet();
     const matches = evaluateFilter(sheet, 0, { kind: 'textContains', value: 'ali' }, 0);
-    assert.deepEqual(Array.from(matches), [2]); // Alice
+    assert.deepEqual(Array.from(matches).sort((a, b) => a - b), [0, 2]); // header + Alice
   });
 
   it('returns distinct column values excluding the header row', () => {

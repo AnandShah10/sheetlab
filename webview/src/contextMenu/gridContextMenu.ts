@@ -8,7 +8,13 @@ type MenuItem = [string, () => void];
 
 export class GridContextMenu {
   show(x: number, y: number): void {
-    const range = appState.selection.range;
+    // Snapshot selection immediately — any later focus/mousedown must not change CF range
+    const range = {
+      startRow: appState.selection.range.startRow,
+      startCol: appState.selection.range.startCol,
+      endRow: appState.selection.range.endRow,
+      endCol: appState.selection.range.endCol,
+    };
     const tableHere = findTableAtLocal(appState.selection.active.row, appState.selection.active.col);
 
     const items: MenuItem[] = [
@@ -34,7 +40,13 @@ export class GridContextMenu {
       ['—', () => {}],
       tableHere
         ? ['Remove Table', () => postToHost({ type: 'removeTable', sheetName: appState.activeSheet, name: tableHere.name })]
-        : ['Create Table from Selection', () => this.createTable(range)],
+        : ['Create Table from Selection', () => this.createTable({ ...range })],
+      ['New Sheet from Selection', () => this.sheetFromSelection({ ...range })],
+      ['—', () => {}],
+      ['CF: Highlight if > 0', () => this.addCf(range, 'gt', 0, { backgroundColor: '#c6efce', fontColor: '#006100' })],
+      ['CF: Highlight if < 0', () => this.addCf(range, 'lt', 0, { backgroundColor: '#ffc7ce', fontColor: '#9c0006' })],
+      ['CF: Highlight blanks', () => this.addCf(range, 'blank', undefined, { backgroundColor: '#ffeb9c' })],
+      ['CF: Clear rules on sheet', () => postToHost({ type: 'clearConditionalFormats', sheetName: appState.activeSheet })],
       ['—', () => {}],
       ['Trace Precedents', () => postToHost({ type: 'tracePrecedents', sheetName: appState.activeSheet, row: range.startRow, col: range.startCol })],
       ['Trace Dependents', () => postToHost({ type: 'traceDependents', sheetName: appState.activeSheet, row: range.startRow, col: range.startCol })],
@@ -46,9 +58,16 @@ export class GridContextMenu {
 
   /** Right-click menu for a column header. */
   showForColumn(col: number, x: number, y: number): void {
+    const lastRow = Math.max(0, appState.currentRowCount() - 1);
+    const colRange = { startRow: 0, startCol: col, endRow: lastRow, endCol: col };
     const items: MenuItem[] = [
       ['Sort Sheet A→Z by this Column', () => this.sortByColumn(col, 'asc')],
       ['Sort Sheet Z→A by this Column', () => this.sortByColumn(col, 'desc')],
+      ['—', () => {}],
+      ['CF: Highlight if > 0 (column)', () => this.addCf(colRange, 'gt', 0, { backgroundColor: '#c6efce', fontColor: '#006100' })],
+      ['CF: Highlight if < 0 (column)', () => this.addCf(colRange, 'lt', 0, { backgroundColor: '#ffc7ce', fontColor: '#9c0006' })],
+      ['CF: Highlight blanks (column)', () => this.addCf(colRange, 'blank', undefined, { backgroundColor: '#ffeb9c' })],
+      ['CF: Clear rules on sheet', () => postToHost({ type: 'clearConditionalFormats', sheetName: appState.activeSheet })],
       ['—', () => {}],
       ['Insert Column Left', () => postToHost({ type: 'insertColumn', sheetName: appState.activeSheet, at: col })],
       ['Insert Column Right', () => postToHost({ type: 'insertColumn', sheetName: appState.activeSheet, at: col + 1 })],
@@ -62,7 +81,14 @@ export class GridContextMenu {
 
   /** Right-click menu for a row header. */
   showForRow(row: number, x: number, y: number): void {
+    const lastCol = Math.max(0, appState.currentColCount() - 1);
+    const rowRange = { startRow: row, startCol: 0, endRow: row, endCol: lastCol };
     const items: MenuItem[] = [
+      ['CF: Highlight if > 0 (row)', () => this.addCf(rowRange, 'gt', 0, { backgroundColor: '#c6efce', fontColor: '#006100' })],
+      ['CF: Highlight if < 0 (row)', () => this.addCf(rowRange, 'lt', 0, { backgroundColor: '#ffc7ce', fontColor: '#9c0006' })],
+      ['CF: Highlight blanks (row)', () => this.addCf(rowRange, 'blank', undefined, { backgroundColor: '#ffeb9c' })],
+      ['CF: Clear rules on sheet', () => postToHost({ type: 'clearConditionalFormats', sheetName: appState.activeSheet })],
+      ['—', () => {}],
       ['Insert Row Above', () => postToHost({ type: 'insertRow', sheetName: appState.activeSheet, at: row })],
       ['Insert Row Below', () => postToHost({ type: 'insertRow', sheetName: appState.activeSheet, at: row + 1 })],
       ['Duplicate Row', () => postToHost({ type: 'duplicateRow', sheetName: appState.activeSheet, at: row })],
@@ -146,12 +172,38 @@ export class GridContextMenu {
   }
 
   private createTable(range: { startRow: number; startCol: number; endRow: number; endCol: number }): void {
-    // Capture range at menu open time so focus loss when the host dialog opens
-    // cannot clear the selection before the host creates the table.
     postToHost({
       type: 'promptCreateTable',
       sheetName: appState.activeSheet,
       range: { ...range },
+    });
+  }
+
+  private sheetFromSelection(range: { startRow: number; startCol: number; endRow: number; endCol: number }): void {
+    postToHost({
+      type: 'newSheetFromSelection',
+      sheetName: appState.activeSheet,
+      range: { ...range },
+    });
+  }
+
+  private addCf(
+    range: { startRow: number; startCol: number; endRow: number; endCol: number },
+    operator: 'gt' | 'lt' | 'blank',
+    value: number | undefined,
+    style: { backgroundColor?: string; fontColor?: string },
+  ): void {
+    postToHost({
+      type: 'addConditionalFormat',
+      sheetName: appState.activeSheet,
+      rule: {
+        id: `cf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        range: { ...range },
+        operator,
+        value,
+        style,
+        stopIfTrue: true,
+      },
     });
   }
 }

@@ -5,6 +5,7 @@ import { colIndexToLetter } from '../app/cellRef';
 import { cellsToClipboardMatrix, matrixToClipboardText, clipboardTextToMatrix } from './clipboard';
 import { GridContextMenu } from '../contextMenu/gridContextMenu';
 import { formatNumber, getNumberFormatColor } from './numberFormat';
+import { resolveConditionalStyle } from '../../../src/data/conditionalFormat';
 
 const ROW_HEADER_WIDTH = 48;
 const OVERSCAN_ROWS = 6;
@@ -615,8 +616,10 @@ export class Grid {
       node.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        appState.selection = { active: { row, col }, range: { startRow: row, startCol: col, endRow: row, endCol: col }, editing: false };
-        appState.notify();
+        if (!this.inSelection(row, col)) {
+          appState.selection = { active: { row, col }, range: { startRow: row, startCol: col, endRow: row, endCol: col }, editing: false };
+          appState.notify();
+        }
         this.contextMenu.show(e.clientX, e.clientY);
       });
       layer.appendChild(node);
@@ -666,7 +669,7 @@ export class Grid {
     node.classList.toggle('sheetlab-cell-error', cell.type === 'error');
     node.classList.toggle('sheetlab-cell-number', cell.type === 'number');
     node.classList.toggle('sheetlab-gridlines', appState.showGridlines);
-    applyCellFormatStyles(node, cell);
+    applyCellFormatStyles(node, cell, row, col);
     this.applyTableBorderStyles(node, row, col);
 
     const hidden = appState.visibleRowFilter[appState.activeSheet];
@@ -697,8 +700,25 @@ export class Grid {
       }
     } else {
       if (node.title && node.title.includes('HEAD:')) node.title = '';
+      // Clear only previous *diff* rgba fills — never wipe CF hex colors
       if (node.style.backgroundColor && /rgba\((46, 160, 67|248, 81, 73|210, 153, 34)/.test(node.style.backgroundColor)) {
         node.style.backgroundColor = '';
+      }
+      // Re-apply CF after diff cleanup so rules remain visible
+      const rules = appState.getConditionalFormats(appState.activeSheet);
+      if (rules.length) {
+        const pseudo = {
+          name: appState.activeSheet,
+          rowCount: appState.rowCount,
+          colCount: appState.colCount,
+          rows: appState.rowsBySheet[appState.activeSheet] ?? {},
+          columns: {},
+          rowMeta: {},
+          conditionalFormats: rules,
+        };
+        const cf = resolveConditionalStyle(pseudo as any, row, col);
+        if (cf?.backgroundColor) node.style.backgroundColor = cf.backgroundColor;
+        if (cf?.fontColor) node.style.color = cf.fontColor;
       }
     }
 
@@ -729,6 +749,22 @@ export class Grid {
   }
 
   private onCellMouseDown(e: MouseEvent, row: number, col: number): void {
+    // Right-click must NOT collapse a multi-cell selection — otherwise CF /
+    // table / "new sheet from selection" always see a single cell.
+    if (e.button === 2) {
+      this.commitEditIfAny();
+      if (!this.inSelection(row, col)) {
+        appState.selection = {
+          active: { row, col },
+          range: { startRow: row, startCol: col, endRow: row, endCol: col },
+          editing: false,
+        };
+        appState.notify();
+        this.onCellSelect?.(row, col);
+        this.onRangeChange?.(appState.selection.range);
+      }
+      return;
+    }
     this.commitEditIfAny();
     this.dragging = true;
     this.keyboardExtendTo = null;
@@ -741,7 +777,6 @@ export class Grid {
       document.removeEventListener('mouseup', onUp);
     };
     document.addEventListener('mouseup', onUp);
-    void e;
   }
 
   private onCellMouseEnter(row: number, col: number): void {
@@ -959,32 +994,43 @@ function displayText(cell: Cell): string {
   return String(cell.value);
 }
 
-function applyCellFormatStyles(node: HTMLDivElement, cell: Cell): void {
+function applyCellFormatStyles(node: HTMLDivElement, cell: Cell, row: number, col: number): void {
   const f = cell.format;
-  node.style.fontWeight = f?.bold ? '600' : '';
-  node.style.fontStyle = f?.italic ? 'italic' : '';
-  node.style.textDecoration = f?.underline ? 'underline' : '';
+  // SheetLab CF rules (display-only merge; does not rewrite cell.format)
+  const sheetName = appState.activeSheet;
+  const pseudo = {
+    name: sheetName,
+    rowCount: appState.rowCount,
+    colCount: appState.colCount,
+    rows: appState.rowsBySheet[sheetName] ?? {},
+    columns: {},
+    rowMeta: {},
+    conditionalFormats: appState.getConditionalFormats(sheetName),
+  };
+  const cf = resolveConditionalStyle(pseudo as any, row, col);
+  const bold = cf?.bold ?? f?.bold;
+  const italic = cf?.italic ?? f?.italic;
+  const underline = cf?.underline ?? f?.underline;
+  node.style.fontWeight = bold ? '600' : '';
+  node.style.fontStyle = italic ? 'italic' : '';
+  node.style.textDecoration = underline ? 'underline' : '';
 
-  // A number format's own conditional color (e.g. "[Red]" in a negative
-  // section) takes precedence over the cell's static font color for that
-  // value, matching Excel's own behavior -- the sign-based color rule is
-  // part of how the format renders that specific value, not a competing
-  // independent style.
-  let color = f?.fontColor ?? '';
-  if (cell.type === 'number' && typeof cell.value === 'number' && f?.numberFormat) {
+  let color = cf?.fontColor ?? f?.fontColor ?? '';
+  if (!cf?.fontColor && cell.type === 'number' && typeof cell.value === 'number' && f?.numberFormat) {
     const formatColor = getNumberFormatColor(cell.value, f.numberFormat);
     if (formatColor) color = formatColor;
   }
   node.style.color = color;
 
-  node.style.backgroundColor = f?.backgroundColor ?? '';
-  node.style.textAlign = f?.align ?? (cell.type === 'number' ? 'right' : 'left');
+  node.style.backgroundColor = cf?.backgroundColor ?? f?.backgroundColor ?? '';
+  node.style.textAlign = cf?.align ?? f?.align ?? (cell.type === 'number' ? 'right' : 'left');
 
   const borderStyle = '1px solid var(--vscode-foreground)';
-  node.style.borderTop = f?.border?.top ? borderStyle : '';
-  node.style.borderRight = f?.border?.right ? borderStyle : '';
-  node.style.borderBottom = f?.border?.bottom ? borderStyle : '';
-  node.style.borderLeft = f?.border?.left ? borderStyle : '';
+  const b = { ...f?.border, ...cf?.border };
+  node.style.borderTop = b?.top ? borderStyle : '';
+  node.style.borderRight = b?.right ? borderStyle : '';
+  node.style.borderBottom = b?.bottom ? borderStyle : '';
+  node.style.borderLeft = b?.left ? borderStyle : '';
 }
 
 function inferLocalCell(raw: string): Cell {

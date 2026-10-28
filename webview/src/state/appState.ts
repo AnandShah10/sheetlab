@@ -48,6 +48,7 @@ export class AppState {
   gitStaged = false;
   /** Inline cell decorations from last Git/semantic diff (key: sheet!row!col). */
   diffHighlights: Record<string, { kind: string; before?: string; after?: string; a1: string }> = {};
+  diffShowOnlyChanged = false;
   /** Raw source text for CSV/TSV preview pane. */
   textContent = '';
 
@@ -155,6 +156,18 @@ export class AppState {
 
   getCell(sheetName: string, row: number, col: number): Cell {
     return this.rowsBySheet[sheetName]?.[row]?.[col] ?? { raw: null, value: null, type: 'blank' };
+  }
+
+  getConditionalFormats(sheetName?: string) {
+    const name = sheetName ?? this.activeSheet;
+    return this.sheetSummaries[name]?.conditionalFormats ?? [];
+  }
+
+  setConditionalFormats(sheetName: string, rules: import('../../../src/types/workbook').ConditionalFormatRule[]): void {
+    const sum = this.sheetSummaries[sheetName];
+    if (!sum) return;
+    this.sheetSummaries[sheetName] = { ...sum, conditionalFormats: rules };
+    this.notify();
   }
 
   setCellLocally(sheetName: string, row: number, col: number, cell: Cell): void {

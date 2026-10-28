@@ -17,7 +17,10 @@
 - **Powerful data tools** — Sort, filter, search (with regex), data cleaning (dedupe, trim, case tools, split columns, etc.)
 - **Excel Tables** — Create/manage tables with structured references in formulas
 - **Freeze panes, cell formatting, row/column resize, hide/show**
-- **SQL-like Query Language** — Run analytical queries with results in a separate non-destructive view
+- **SQL-like Query Language** — SELECT/WHERE/JOIN/GROUP BY/**HAVING**/ORDER BY/LIMIT
+- **Charts** — bar/line/pie/scatter/… with Export SVG/PNG and materialize to sheet
+- **Conditional formatting** (SheetLab rules) — highlight by value / blanks on a selection (context menu)
+- **Pivot tables** — Excel-style rows × columns × values, materialize to a new sheet
 - **Full undo/redo** — Application-level, works with VS Code's text undo for CSVs
 - **Dark/Light/High-contrast themes** that follow VS Code
 - **Zero telemetry by default** — No network calls, no data exfiltration (ever)
@@ -118,13 +121,16 @@ Full list available in `package.json` or VS Code Settings (search for "SheetLab"
 
 ## Known Limitations
 
-- No charts, pivot tables, or advanced conditional formatting
-- ODS not supported
-- Very large files (>500k rows) are truncated (configurable)
-- XLSM macros are preserved only on explicit confirmation (ExcelJS limitations)
-- Query language is a focused SQL *subset* (no JOINs, subqueries, etc.)
+- **Excel rule-based conditional formatting** from the file is not fully imported or rewritten on save. SheetLab provides its **own CF rules** (value / blank highlights on a selection via the grid context menu) applied in the viewer.
+- **In-file Excel charts and PivotCaches** are not read or written. Use SheetLab **Charts** and **Pivot** (toolbar), then materialize to a sheet or export **SVG/PNG**.
+- **SLQL** supports: `SELECT`, `FROM`, `JOIN` (INNER / LEFT / RIGHT / FULL, multi-key `ON`), `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT`.
+  - **Not supported:** subqueries, `UNION`, window functions, joins across different workbook files.
+- **Git:** in-app cell highlights only; VS Code’s native text diff does not color the custom grid.
+- **CSV/TSV:** single sheet only.
+- Very large files may be truncated or slower (see settings).
+- **XLSM** macros only with explicit confirmation (ExcelJS).
+- **ODS** open/edit/save is supported; some LibreOffice-only features may not round-trip.
 
-See the full [architecture](#architecture) and detailed limitation notes below for transparency.
 
 ## The One Thing to Know About CSVs
 
@@ -180,8 +186,8 @@ The spreadsheet is a *view* of the same file — edits are synchronized through 
 | `.xls` | Yes  | No    | Legacy binary format — view/query/copy only; **Save** offers "Export as XLSX" instead of in-place overwrite |
 | `.csv` | Yes  | Yes   | Opt-in spreadsheet view; stays a normal text file otherwise |
 | `.tsv` | Yes  | Yes   | Same as CSV, tab-delimited |
+| `.ods` | Yes  | Yes   | OpenDocument spreadsheet; some LibreOffice-only features may not round-trip |
 
-ODS is not supported in this version.
 
 ## Opening CSV as a spreadsheet
 
@@ -205,7 +211,8 @@ A deliberately small SQL-like subset — **not** full SQL.
 - `SELECT` (columns, `*`, aggregates with `AS`)
 - `FROM <sheet>`
 - `WHERE` with comparison operators + `AND`/`OR`
-- `GROUP BY`, `ORDER BY`, `LIMIT`
+- `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT`
+- `INNER` / `LEFT` / `RIGHT` / `FULL` `JOIN` with aliases and multi-key `ON`
 
 See original README for examples and explicit non-supported features.
 

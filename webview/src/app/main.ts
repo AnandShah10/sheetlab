@@ -13,6 +13,8 @@ import { FilterPopup } from '../contextMenu/filterPopup';
 import { parseA1OrRange } from './cellRef';
 import { TextPreview } from '../textPreview/textPreview';
 import { AnalysisPanel } from '../analysis/analysisPanel';
+import { ChartsModal } from '../analysis/chartsModal';
+import { PivotModal } from '../analysis/pivotModal';
 
 document.body.style.margin = '0';
 document.body.style.height = '100vh';
@@ -56,6 +58,10 @@ root.appendChild(queryPanelEl);
 root.appendChild(cleanPanelEl);
 root.appendChild(filterPopupEl);
 
+const diffBanner = div('sheetlab-diff-banner');
+diffBanner.style.display = 'none';
+// Sit above the grid/work area so highlights are obvious
+root.insertBefore(diffBanner, workRow);
 
 const grid = new Grid(gridEl);
 const textPreview = new TextPreview(textPreviewEl);
@@ -68,6 +74,76 @@ const queryPanel = new QueryPanel(queryPanelEl);
 const cleanPanel = new DataCleaningPanel(cleanPanelEl);
 const filterPopup = new FilterPopup(filterPopupEl);
 const analysisPanel = new AnalysisPanel(analysisPanelEl);
+const chartsModal = new ChartsModal(root);
+const pivotModal = new PivotModal(root);
+
+function updateDiffBanner(): void {
+  const keys = Object.keys(appState.diffHighlights);
+  if (!keys.length) {
+    diffBanner.style.display = 'none';
+    return;
+  }
+  diffBanner.style.display = 'flex';
+  let added = 0, removed = 0, changed = 0;
+  for (const k of keys) {
+    const kind = appState.diffHighlights[k]?.kind ?? 'value';
+    if (kind === 'added') added++;
+    else if (kind === 'removed') removed++;
+    else changed++;
+  }
+  const n = keys.length;
+  diffBanner.innerHTML = '';
+  const label = document.createElement('span');
+  label.className = 'sheetlab-diff-banner-label';
+  label.textContent = `${n} change${n === 1 ? '' : 's'} vs HEAD`;
+  diffBanner.appendChild(label);
+  const legend = document.createElement('span');
+  legend.className = 'sheetlab-diff-banner-legend';
+  legend.textContent = `+${added}  −${removed}  ~${changed}`;
+  diffBanner.appendChild(legend);
+  const onlyBtn = document.createElement('button');
+  onlyBtn.type = 'button';
+  onlyBtn.className = 'sheetlab-tools-chip';
+  onlyBtn.textContent = appState.diffShowOnlyChanged ? 'Show all rows' : 'Show only changes';
+  onlyBtn.addEventListener('click', () => {
+    appState.diffShowOnlyChanged = !appState.diffShowOnlyChanged;
+    if (appState.diffShowOnlyChanged) {
+      const rows = new Set<number>([0]);
+      for (const key of Object.keys(appState.diffHighlights)) {
+        const parts = key.split('!');
+        if (parts[0] === appState.activeSheet) rows.add(Number(parts[1]));
+      }
+      appState.visibleRowFilter[appState.activeSheet] = rows;
+    } else {
+      appState.visibleRowFilter[appState.activeSheet] = null;
+    }
+    appState.notify();
+    grid.reset();
+    updateDiffBanner();
+  });
+  diffBanner.appendChild(onlyBtn);
+  const toolsBtn = document.createElement('button');
+  toolsBtn.type = 'button';
+  toolsBtn.className = 'sheetlab-tools-chip';
+  toolsBtn.textContent = 'Open Changes list';
+  toolsBtn.addEventListener('click', () => analysisPanel.open());
+  diffBanner.appendChild(toolsBtn);
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'sheetlab-tools-chip';
+  clearBtn.textContent = 'Clear';
+  clearBtn.addEventListener('click', () => {
+    appState.diffHighlights = {};
+    appState.diffShowOnlyChanged = false;
+    appState.visibleRowFilter[appState.activeSheet] = null;
+    appState.notify();
+    grid.reset();
+    updateDiffBanner();
+  });
+  diffBanner.appendChild(clearBtn);
+}
+appState.subscribe(() => updateDiffBanner());
+
 
 new Toolbar(toolbarEl, {
   onOpenSearch: () => searchPanel.toggle(),
@@ -120,6 +196,8 @@ new Toolbar(toolbarEl, {
   onAnalyzeWorkbook: () => analysisPanel.requestProfile(),
   onExplainCell: () => analysisPanel.requestExplain(),
   onOpenAnalysis: () => analysisPanel.toggle(),
+  onOpenCharts: () => chartsModal.open(),
+  onOpenPivot: () => pivotModal.open(),
   onDiffVsHead: () => {
     analysisPanel.open();
     // Semantic highlights on grid + list (working tree vs HEAD)
@@ -194,9 +272,19 @@ onHostMessage((msg) => {
       grid.scrollToCell(msg.row, msg.col);
       break;
     }
+    case 'conditionalFormatsUpdated': {
+      appState.setConditionalFormats(msg.sheetName, msg.rules as any);
+      grid.reset();
+      break;
+    }
+    case 'analysisAdvancedResult': {
+      chartsModal.showResult(msg.result);
+      break;
+    }
     case 'diffHighlights': {
       if (msg.clear) {
         appState.diffHighlights = {};
+        appState.diffShowOnlyChanged = false;
       } else {
         const map: typeof appState.diffHighlights = {};
         for (const e of msg.entries ?? []) {
@@ -208,9 +296,13 @@ onHostMessage((msg) => {
           };
         }
         appState.diffHighlights = map;
+        if ((msg.entries ?? []).length) {
+          analysisPanel.open();
+        }
       }
       appState.notify();
       grid.reset();
+      updateDiffBanner();
       break;
     }
     case 'gitFileStatus': {
@@ -220,14 +312,18 @@ onHostMessage((msg) => {
       break;
     }
     case 'forceViewMode': {
-      appState.viewMode = msg.mode;
-      root.dataset.viewMode = msg.mode;
+      const mode = msg.mode === 'text' ? 'split' : msg.mode;
+      appState.viewMode = mode;
+      root.dataset.viewMode = mode;
       appState.notify();
-      // Layout after mode change so split panes size correctly
-      requestAnimationFrame(() => {
+      const layout = () => {
+        root.dataset.viewMode = mode;
         grid.reset();
         window.dispatchEvent(new Event('resize'));
-      });
+      };
+      requestAnimationFrame(layout);
+      setTimeout(layout, 50);
+      setTimeout(layout, 150);
       break;
     }
     case 'textContent': {
@@ -256,6 +352,20 @@ onHostMessage((msg) => {
       appState.notify();
       sheetTabs.render();
       grid.reset();
+      // Re-apply preferred mode after layout so Preview (split) is never stuck on spreadsheet
+      const preferred = msg.preferredViewMode ?? appState.viewMode;
+      if (preferred && preferred !== 'spreadsheet') {
+        const apply = () => {
+          appState.viewMode = preferred;
+          root.dataset.viewMode = preferred;
+          appState.notify();
+          grid.reset();
+          window.dispatchEvent(new Event('resize'));
+        };
+        requestAnimationFrame(apply);
+        setTimeout(apply, 50);
+        setTimeout(apply, 200);
+      }
       break;
     }
     case 'sheetData': {
@@ -356,7 +466,7 @@ function handleUiCommand(command: string): void {
         pane: { row: 0, col: 0 },
       });
       break;
-    case 'openTools': analysisPanel.toggle(); break;
+    case 'openTools': analysisPanel.open(); break;
     case 'tracePrecedents': analysisPanel.requestPrecedents(); break;
     case 'traceDependents': analysisPanel.requestDependents(); break;
     case 'runLinter': analysisPanel.requestLinter(); break;

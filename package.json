@@ -2,7 +2,7 @@
   "name": "sheetlab",
   "displayName": "SheetLab \u2014 Excel Viewer & Query",
   "description": "Excel-like spreadsheet viewing, editing, and querying for XLSX/XLS/XLSM/ODS inside VS Code, plus an opt-in spreadsheet view for CSV/TSV that never hijacks the normal text editor.",
-  "version": "0.5.14",
+  "version": "0.5.26",
   "publisher": "AnandShah",
   "repository": {
     "type": "git",
@@ -628,9 +628,12 @@
     "test": "node ./tests/runTest.js",
     "test:unit": "node ./tests/runTest.js",
     "test:perf": "ts-node tests/performance/run.ts",
-    "package": "vsce package",
+    "package": "npm run build && vsce package --no-dependencies",
     "test:mocha": "mocha -r ts-node/register \"tests/unit/**/*.test.ts\"",
-    "cli": "node dist/cli.js"
+    "cli": "node dist/cli.js",
+    "prepackage": "npm run build",
+    "verify:webview": "node -e \"const fs=require('fs');const p='media/webview.js';if(!fs.existsSync(p)||fs.statSync(p).size<1000){console.error('media/webview.js missing or empty');process.exit(1)}console.log('webview ok',fs.statSync(p).size)\"",
+    "postbuild": "npm run verify:webview"
   },
   "dependencies": {
     "exceljs": "^3.4.0",

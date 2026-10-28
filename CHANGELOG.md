@@ -4,6 +4,111 @@ All notable changes to SheetLab will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.26]
+
+### Fixed
+- Right-click no longer collapses multi-cell selection (CF / table / new sheet from selection)
+- CF on **whole column** and **whole row** via column/row header context menus
+
+## [0.5.25]
+
+### Fixed
+- Conditional formatting **> 0 / < 0**: robust number parsing (currency, %, parentheses), re-apply CF after diff style cleanup
+- markDirty uses CustomDocumentEditEvent with no-op undo/redo to avoid "Missing dataLength in event" / document registry glitches
+
+## [0.5.24]
+
+### Fixed
+- **No custom document found** on edit/save: always create a fresh CustomDocument, only fire dirty events after resolveCustomEditor, track resolved panels
+- Chart **Export PNG** CSP: use data: URLs instead of blob: for SVG→canvas
+
+## [0.5.23]
+
+### Added
+- **Conditional formatting (SheetLab rules)** on selection: highlight if > 0, < 0, or blank; clear rules; applied in grid
+- README / FEATURES: accurate limitations for CF, in-file charts/pivots, SLQL (JOIN/HAVING), Git, ODS
+
+## [0.5.22]
+
+### Added
+- **Pivot Table** modal (toolbar): rows × columns × values, materialize to sheet
+- Chart **Export PNG** (SVG → canvas raster)
+- Query **HAVING** after GROUP BY
+- Context menu **New Sheet from Selection** (range frozen at menu open)
+
+### Fixed
+- Selection for table / new-sheet actions uses frozen range (not live selection after focus loss)
+
+### Changed
+- README / FEATURES updated (charts, pivot, HAVING)
+
+## [0.5.21]
+
+### Fixed
+- Charts: validation messages, empty-data feedback, always open modal on result
+- Preview: re-apply preferred `split` mode after init and on `forceViewMode` (retries)
+- `npm run package` / `prepackage` always rebuild webview; `verify:webview` postbuild check
+
+### Added
+- Charts: **Sample chart**, **Export SVG**, **Materialize to sheet**, saved config
+- JOIN: multi-key `ON a.x = b.x AND a.y = b.y`; clearer same-workbook sheet errors
+- Docs: FEATURES.md and README updated for v0.5.21
+
+## [0.5.20]
+
+### Added
+- **JOIN queries**: `INNER` / `LEFT` / `RIGHT` / `FULL` JOIN with `ON a.col = b.col`, table aliases, qualified columns
+- Query panel **JOIN templates** (one-click insert)
+- Unit tests for JOIN parse and execution
+
+## [0.5.19]
+
+### Changed
+- **Charts moved out of Tools** into a large dedicated **Charts modal** (toolbar **Charts** button) with form left + graph right
+- Tools panel **resizable from all sides** (edges + corners), not only the left handle
+
+### Fixed
+- Chart workspace is large enough to see graphs and data tables
+- Advanced analysis results open the Charts modal instead of the narrow Tools dock
+
+## [0.5.18]
+
+### Fixed
+- **Tools stay open**: `openTools` no longer toggles closed (fixes Explain WB / lint / profile disappearing until reopen)
+- **Charts layout**: form capped height so the **graph and data table** stay visible in the results pane
+- **Charts results**: advanced analysis result always opens Charts tab and renders SVG with explicit height
+- Tools panel max width increased to 720px for chart usability
+
+## [0.5.17]
+
+### Added
+- **Charts** Tools tab — separate **Advanced Analysis** mode (not mixed with formula Analyze)
+- Configurable **chart type**, **category (X)**, **measures + aggregations** (sum/avg/count/min/max/median/count unique), optional **2nd measure**, **series/legend**, **filter column**, **sort**, title, legend, value labels
+- Chart types: bar, stacked bar, line, area, pie, donut, scatter, histogram
+- Aggregation engine `src/analysis/advancedAnalysis.ts` + results data table
+
+### Changed
+- Quick Histogram/Bar/Line/Pie chips removed from Analyze (use Charts tab instead)
+- Analyze keeps Column stats as a quick action only
+
+## [0.5.16]
+
+### Added
+- **Column stats** (Tools → Analyze): count, blanks, unique, type mix, min/max/mean/median/stdev, top values
+- **Charts** (SVG, no extra deps): histogram, bar, line, pie for the active column
+- Unit tests for `dataStats`
+
+## [0.5.15]
+
+### Added
+- **Diff banner** above the grid when changes vs HEAD are loaded (count, legend, Show only changes, Open list, Clear)
+- **Show only changes** filters the grid to rows that differ from HEAD
+- Stronger cell highlight colors (`!important`) so format styles cannot hide them
+
+### Fixed
+- Diff vs HEAD uses **in-memory workbook** when comparing so unsaved edits are included
+- Native VS Code “Working Tree” split does **not** paint SheetLab cells — use **Diff vs HEAD** in the SheetLab toolbar / Tools → Changes instead
+
 ## [0.5.14]
 
 ### Added

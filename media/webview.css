@@ -827,6 +827,35 @@ body {
   max-height: none;
   overflow: visible;
 }
+/* Charts builder: keep form compact so results (graph) stay visible */
+.sheetlab-tools-actions--form {
+  display: block;
+  flex: 0 0 auto;
+  max-height: min(34vh, 280px);
+  overflow: auto;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.25));
+}
+.sheetlab-tools-results {
+  flex: 1 1 auto !important;
+  min-height: 180px !important;
+}
+.sheetlab-chart-wrap {
+  min-height: 200px;
+}
+.sheetlab-chart-svg {
+  min-height: 180px;
+  background: var(--vscode-editor-background);
+  border-radius: 6px;
+}
+.sheetlab-adv-form {
+  max-height: none !important;
+}
+.sheetlab-adv-run {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
 .sheetlab-tools-chip {
   padding: 3px 8px;
   font-size: 11px;
@@ -1204,4 +1233,318 @@ body {
 }
 .sheetlab-diff-hunk-changed {
   border-left: 3px solid #d29922;
+}
+
+.sheetlab-diff-banner {
+  display: none;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d) 18%, var(--vscode-editor-background));
+  border-bottom: 2px solid var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+  font-size: 12px;
+  z-index: 5;
+}
+.sheetlab-diff-banner-label {
+  font-weight: 700;
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
+}
+.sheetlab-diff-banner-legend {
+  opacity: 0.9;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+/* Stronger grid cell colors */
+.sheetlab-cell.sheetlab-cell-diff-added {
+  background-color: rgba(46, 160, 67, 0.35) !important;
+}
+.sheetlab-cell.sheetlab-cell-diff-removed {
+  background-color: rgba(248, 81, 73, 0.35) !important;
+}
+.sheetlab-cell.sheetlab-cell-diff-changed,
+.sheetlab-cell.sheetlab-cell-diff-formula {
+  background-color: rgba(210, 153, 34, 0.35) !important;
+}
+
+.sheetlab-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+.sheetlab-stats-card {
+  background: var(--vscode-editorWidget-background, rgba(127,127,127,0.1));
+  border: 1px solid var(--vscode-widget-border, #333);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.sheetlab-stats-k {
+  font-size: 10px;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sheetlab-stats-v {
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.sheetlab-stats-freq {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px 36px;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  margin: 3px 0;
+}
+.sheetlab-stats-freq-val {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheetlab-stats-freq-bar {
+  height: 8px;
+  background: rgba(127,127,127,0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sheetlab-stats-freq-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--vscode-charts-blue, #3b82f6);
+}
+.sheetlab-stats-freq-n {
+  text-align: right;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.sheetlab-chart-wrap {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--vscode-widget-border, #333);
+  border-radius: 8px;
+  background: var(--vscode-editor-background);
+}
+.sheetlab-chart-svg {
+  display: block;
+  color: var(--vscode-foreground);
+}
+
+/* Advanced Analysis / Charts builder */
+.sheetlab-adv-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 8px;
+  max-height: 42vh;
+  overflow: auto;
+}
+.sheetlab-adv-field {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+.sheetlab-adv-field label {
+  opacity: 0.85;
+}
+.sheetlab-adv-select,
+.sheetlab-adv-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 11px;
+  padding: 3px 6px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 4px;
+}
+.sheetlab-adv-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  padding: 4px 0;
+}
+.sheetlab-adv-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.sheetlab-adv-run {
+  margin-top: 4px;
+  width: 100%;
+}
+.sheetlab-adv-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  margin-top: 6px;
+}
+.sheetlab-adv-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.sheetlab-adv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.sheetlab-adv-table th,
+.sheetlab-adv-table td {
+  border: 1px solid var(--vscode-widget-border, #333);
+  padding: 3px 6px;
+  text-align: left;
+}
+.sheetlab-adv-table th {
+  background: var(--vscode-editorWidget-background, rgba(127,127,127,0.12));
+  position: sticky;
+  top: 0;
+}
+
+/* Tools panel multi-edge resize */
+.sheetlab-tools-panel {
+  position: relative;
+}
+.sheetlab-tools-resize-extra {
+  position: absolute;
+  z-index: 6;
+  background: transparent;
+}
+.sheetlab-tools-resize-n { top: 0; left: 8px; right: 8px; height: 5px; cursor: ns-resize; }
+.sheetlab-tools-resize-s { bottom: 0; left: 8px; right: 8px; height: 5px; cursor: ns-resize; }
+.sheetlab-tools-resize-e { top: 8px; bottom: 8px; right: 0; width: 5px; cursor: ew-resize; }
+.sheetlab-tools-resize-ne { top: 0; right: 0; width: 10px; height: 10px; cursor: nesw-resize; }
+.sheetlab-tools-resize-nw { top: 0; left: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+.sheetlab-tools-resize-se { bottom: 0; right: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+.sheetlab-tools-resize-sw { bottom: 0; left: 0; width: 10px; height: 10px; cursor: nesw-resize; }
+
+/* Full Charts workspace modal */
+.sheetlab-charts-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 24px;
+  box-sizing: border-box;
+}
+.sheetlab-charts-modal {
+  position: relative;
+  width: min(1100px, 94vw);
+  height: min(720px, 90vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-editor-background, #1e1e1e);
+  color: var(--vscode-foreground);
+  border: 1px solid var(--vscode-widget-border, #444);
+  border-radius: 10px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.sheetlab-charts-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--vscode-widget-border, #333);
+  flex-shrink: 0;
+}
+.sheetlab-charts-modal-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.sheetlab-charts-modal-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+.sheetlab-charts-modal-form {
+  width: 280px;
+  flex-shrink: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  border-right: 1px solid var(--vscode-widget-border, #333);
+  background: var(--vscode-sideBar-background, rgba(127,127,127,0.06));
+}
+.sheetlab-charts-modal-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.sheetlab-charts-modal-status {
+  padding: 6px 12px;
+  font-size: 11px;
+  opacity: 0.75;
+  border-bottom: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2));
+  flex-shrink: 0;
+}
+.sheetlab-charts-modal-canvas {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+}
+.sheetlab-charts-modal-svg-wrap {
+  min-height: 360px;
+  padding: 12px;
+}
+.sheetlab-charts-resize {
+  position: absolute;
+  z-index: 5;
+}
+.sheetlab-charts-resize-n { top: 0; left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+.sheetlab-charts-resize-s { bottom: 0; left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+.sheetlab-charts-resize-e { top: 12px; bottom: 12px; right: 0; width: 6px; cursor: ew-resize; }
+.sheetlab-charts-resize-w { top: 12px; bottom: 12px; left: 0; width: 6px; cursor: ew-resize; }
+.sheetlab-charts-resize-ne { top: 0; right: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+.sheetlab-charts-resize-nw { top: 0; left: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+.sheetlab-charts-resize-se { bottom: 0; right: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+.sheetlab-charts-resize-sw { bottom: 0; left: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+
+.sheetlab-query-join-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.sheetlab-charts-extra-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.sheetlab-charts-extra-actions .sheetlab-btn-secondary {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.sheetlab-pivot-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 120px;
+  overflow: auto;
+  font-size: 11px;
+}
+
+/* Conditional formatting: keep fills visible under selection outline */
+.sheetlab-cell.sheetlab-cell-selected {
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: -1px;
 }

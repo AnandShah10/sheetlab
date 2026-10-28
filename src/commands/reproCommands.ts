@@ -374,7 +374,7 @@ export function registerReproCommands(_context: vscode.ExtensionContext): vscode
         }
         return (await readXlsxWorkbook(buf, p, ext === '.xlsm' ? 'xlsm' : 'xlsx', { maxRows: 500000 })).workbook;
       };
-      const result = await compareWorkbookToHead(wb, filePath, loader);
+      const result = await compareWorkbookToHead(wb, filePath, loader, { preferMemory: true });
       if (!result) return;
       postDiffsToActivePanel(result.note, result.diffs);
       activePanelRegistry.send('openTools');

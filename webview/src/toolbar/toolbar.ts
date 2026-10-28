@@ -19,6 +19,8 @@ export interface ToolbarCallbacks {
   onAnalyzeWorkbook?: () => void;
   onExplainCell?: () => void;
   onOpenAnalysis?: () => void;
+  onOpenCharts?: () => void;
+  onOpenPivot?: () => void;
   /** Open semantic diff vs Git HEAD when the file has local changes. */
   onDiffVsHead?: () => void;
   /** Called after any format/action is applied, so the caller can scroll the affected cell into view -- important since the active cell is very often scrolled off-screen when a toolbar button is clicked. */
@@ -89,6 +91,8 @@ export class Toolbar {
     // Tools side panel (analysis, pipelines, queries, quality, git)
     const toolsGroup = group(
       this.button('Tools', 'query', () => this.callbacks.onOpenAnalysis?.()),
+      this.button('Charts', 'query', () => this.callbacks.onOpenCharts?.()),
+      this.button('Pivot', 'query', () => this.callbacks.onOpenPivot?.()),
     );
     toolsGroup.dataset.role = 'analysis';
     this.container.appendChild(toolsGroup);

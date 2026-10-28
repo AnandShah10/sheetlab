@@ -37,6 +37,10 @@ import { recordQuery, queriesMentioningSheet } from '../../services/queryHistory
 import { proposeColumnFormulaFixes } from '../../analysis/columnFix';
 import { writeLineageSidecar, loadLineageSidecar } from '../../services/lineageSidecar';
 import { getFileGitStatus } from '../../services/gitStatus';
+import { analyzeColumn, buildChartFromColumn } from '../../analysis/dataStats';
+import { runAdvancedAnalysis, listColumns } from '../../analysis/advancedAnalysis';
+import { runPivot } from '../../analysis/pivot';
+import { addConditionalRule, clearConditionalRules } from '../../data/conditionalFormat';
 import { listPipelines, loadPipeline } from '../../pipelines/pipelineStore';
 import { TransformationPipeline } from '../../pipelines/types';
 
@@ -72,6 +76,12 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
   private readonly dirtyDocuments = new Set<string>();
   /** Strong refs so VS Code save can always resolve the open document. */
   private readonly documents = new Map<string, ExcelDocument>();
+  /**
+   * URIs for which resolveCustomEditor has run and the panel is still open.
+   * Firing onDidChangeCustomDocument for a doc VS Code has not registered
+   * throws "No custom document found" in the extension host.
+   */
+  private readonly resolvedDocumentKeys = new Set<string>();
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -89,22 +99,22 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     _token: vscode.CancellationToken,
   ): Promise<ExcelDocument> {
     const key = uri.toString();
-    // Reuse an existing document instance for the same URI when possible so
-    // VS Code's save path never loses the CustomDocument reference.
-    let doc = this.documents.get(key);
-    if (!doc) {
-      doc = new ExcelDocument(uri);
-      this.documents.set(key, doc);
-      doc.onDidDispose(() => {
-        this.documents.delete(key);
-        this.dirtyDocuments.delete(key);
-      });
-    }
+    // Always create a fresh CustomDocument. Reusing a previous instance after
+    // dispose/re-open leaves VS Code's internal CustomDocumentStore without an
+    // entry for that object, so markDirty → onDidChangeCustomDocument throws
+    // "No custom document found".
+    const doc = new ExcelDocument(uri);
+    this.documents.set(key, doc);
+    doc.onDidDispose(() => {
+      this.documents.delete(key);
+      this.dirtyDocuments.delete(key);
+      this.resolvedDocumentKeys.delete(key);
+    });
     await this.loadWorkbook(doc);
     const stat = await vscode.workspace.fs.stat(uri);
     doc.conflictWatcher?.dispose();
     doc.conflictWatcher = new ExcelConflictWatcher(uri, stat.mtime);
-    doc.conflictWatcher.onExternalChange(() => this.handleExternalChange(doc!));
+    doc.conflictWatcher.onExternalChange(() => this.handleExternalChange(doc));
     return doc;
   }
 
@@ -198,6 +208,10 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     panel: vscode.WebviewPanel,
     _token: vscode.CancellationToken,
   ): Promise<void> {
+    const key = doc.uri.toString();
+    this.documents.set(key, doc);
+    this.resolvedDocumentKeys.add(key);
+
     panel.webview.options = {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')],
@@ -212,13 +226,19 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
     panel.webview.onDidReceiveMessage(async (raw: WebviewToHostMessage) => {
       try {
-        await this.handleMessage(doc, raw, post);
+        // Always use the live document from our map so mutations hit the
+        // same instance VS Code registered via openCustomDocument.
+        const live = this.documents.get(key) ?? doc;
+        await this.handleMessage(live, raw, post);
       } catch (err) {
         post({ type: 'error', message: err instanceof Error ? err.message : 'Unknown error', detail: String(err) });
       }
     });
 
-    panel.onDidDispose(() => focusSub.dispose());
+    panel.onDidDispose(() => {
+      focusSub.dispose();
+      this.resolvedDocumentKeys.delete(key);
+    });
   }
 
   private async handleMessage(
@@ -240,7 +260,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
             sheetSummaries: Object.fromEntries(
               Object.entries(doc.workbook.sheets).map(([name, s]) => [
                 name,
-                { rowCount: s.rowCount, colCount: s.colCount, columns: s.columns, rowMeta: s.rowMeta, tables: s.tables ?? [], freezePane: s.freezePane },
+                { rowCount: s.rowCount, colCount: s.colCount, columns: s.columns, rowMeta: s.rowMeta, tables: s.tables ?? [], freezePane: s.freezePane, conditionalFormats: s.conditionalFormats ?? [] },
               ]),
             ),
             firstSheet: {
@@ -544,6 +564,54 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         return;
       }
 
+      case 'newSheetFromSelection': {
+        const src = getSheet(doc.workbook, msg.sheetName || doc.activeSheet);
+        const r = msg.range;
+        const cols: string[] = [];
+        const dataRows: (string | number | boolean | null)[][] = [];
+        for (let c = r.startCol; c <= r.endCol; c++) {
+          const h = src.rows[r.startRow]?.[c];
+          cols.push(h?.value != null ? String(h.value) : `Col${c + 1}`);
+        }
+        for (let row = r.startRow + 1; row <= r.endRow; row++) {
+          const line: (string | number | boolean | null)[] = [];
+          for (let c = r.startCol; c <= r.endCol; c++) {
+            line.push(src.rows[row]?.[c]?.value ?? null);
+          }
+          dataRows.push(line);
+        }
+        // Reuse materialize path
+        const base = 'Selection';
+        let name = base;
+        let n = 1;
+        while (doc.workbook.sheets[name]) {
+          n += 1;
+          name = `${base}_${n}`;
+        }
+        const previousActiveSheet = doc.activeSheet;
+        const previousSheetOrder = [...doc.workbook.meta.sheetOrder];
+        const created = createWorksheet(doc.workbook, name);
+        const data: string[][] = [
+          cols,
+          ...dataRows.map((row) => row.map((v) => (v === null || v === undefined ? '' : String(v)))),
+        ];
+        pasteRange(created, 0, 0, data);
+        doc.activeSheet = name;
+        doc.undoStack.push({
+          kind: 'sheetCreate',
+          label: `Selection → ${name}`,
+          sheetName: name,
+          previousActiveSheet,
+          previousSheetOrder,
+          sheetSnapshot: structuredCloneSheet(created),
+        });
+        this.markDirty(doc);
+        this.broadcastSheetOrderChange(doc, post);
+        this.resyncSheet(doc, name, post);
+        post({ type: 'undoRedoState', canUndo: doc.undoStack.canUndo(), canRedo: doc.undoStack.canRedo() });
+        return;
+      }
+
       case 'resizeColumn': {
         const sheet = getSheet(doc.workbook, msg.sheetName);
         sheet.columns[msg.col] = { ...sheet.columns[msg.col], width: msg.width };
@@ -656,6 +724,77 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         post({ type: 'analysisDiagnostics', diagnostics });
         return;
       }
+      case 'requestColumnList': {
+        const sheet = getSheet(doc.workbook, msg.sheetName);
+        post({ type: 'analysisColumnList', sheetName: sheet.name, columns: listColumns(sheet, 0) });
+        return;
+      }
+
+      case 'runAdvancedAnalysis': {
+        try {
+          const cfg = msg.config as import('../../analysis/advancedAnalysis').AdvancedAnalysisConfig;
+          const sheetName = (cfg as any).sheetName || doc.activeSheet;
+          const sheet = getSheet(doc.workbook, sheetName);
+          const result = runAdvancedAnalysis(sheet, { ...cfg, sheetName: sheet.name });
+          if (!result.categories?.length && !result.series?.some((s: any) => s.values?.length)) {
+            post({
+              type: 'analysisAdvancedError',
+              message: `No data for chart on "${sheet.name}". Check columns and header row.`,
+            });
+          }
+          post({ type: 'analysisAdvancedResult', result });
+        } catch (err) {
+          post({
+            type: 'analysisAdvancedError',
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+        return;
+      }
+
+      case 'addConditionalFormat': {
+        const sheet = getSheet(doc.workbook, msg.sheetName || doc.activeSheet);
+        addConditionalRule(sheet, msg.rule);
+        this.markDirty(doc);
+        post({ type: 'conditionalFormatsUpdated', sheetName: sheet.name, rules: sheet.conditionalFormats ?? [] });
+        return;
+      }
+      case 'clearConditionalFormats': {
+        const sheet = getSheet(doc.workbook, msg.sheetName || doc.activeSheet);
+        clearConditionalRules(sheet);
+        this.markDirty(doc);
+        post({ type: 'conditionalFormatsUpdated', sheetName: sheet.name, rules: [] });
+        return;
+      }
+      case 'runPivot': {
+        try {
+          const cfg = msg.config as import('../../analysis/pivot').PivotConfig;
+          const sheet = getSheet(doc.workbook, (cfg as any).sheetName || doc.activeSheet);
+          const result = runPivot(sheet, { ...cfg, sheetName: sheet.name });
+          post({ type: 'analysisPivotResult', result });
+        } catch (err) {
+          post({
+            type: 'analysisPivotError',
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+        return;
+      }
+
+      case 'runColumnStats': {
+        const sheet = getSheet(doc.workbook, msg.sheetName);
+        const stats = analyzeColumn(sheet, msg.col);
+        post({ type: 'analysisColumnStats', stats });
+        return;
+      }
+
+      case 'runChart': {
+        const sheet = getSheet(doc.workbook, msg.sheetName);
+        const chart = buildChartFromColumn(sheet, msg.col, msg.kind);
+        post({ type: 'analysisChart', chart });
+        return;
+      }
+
       case 'runProfile': {
         if (!doc.analysis) doc.analysis = new AnalysisService(() => doc.workbook);
         post({ type: 'analysisProfile', profile: doc.analysis.getProfile() });
@@ -1029,6 +1168,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       rowMeta: sheet.rowMeta,
       tables: sheet.tables ?? [],
       freezePane: sheet.freezePane,
+      conditionalFormats: sheet.conditionalFormats ?? [],
     });
   }
 
@@ -1055,6 +1195,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         rowMeta: sheet.rowMeta,
         tables: sheet.tables ?? [],
         freezePane: sheet.freezePane,
+        conditionalFormats: sheet.conditionalFormats ?? [],
       },
     });
   }
@@ -1073,8 +1214,24 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     this.documents.set(key, doc);
     this.dirtyDocuments.add(key);
     doc.analysis?.invalidate();
-    // Content-change event (we manage undo inside the webview/host, not via VS Code edits).
-    this.onDidChangeCustomDocumentEmitter.fire({ document: doc });
+    // Only notify VS Code when this document is currently resolved in a
+    // custom editor. Firing otherwise → "No custom document found".
+    if (!this.resolvedDocumentKeys.has(key)) {
+      return;
+    }
+    // Prefer edit event with no-op undo/redo. Plain content-change events have
+    // triggered "Missing dataLength in event" / "No custom document found" in
+    // some VS Code builds when the internal entry is mid-lifecycle.
+    this.onDidChangeCustomDocumentEmitter.fire({
+      document: doc,
+      label: 'SheetLab edit',
+      undo: () => {
+        /* undo is owned by SheetLab UndoStack, not VS Code */
+      },
+      redo: () => {
+        /* redo is owned by SheetLab UndoStack, not VS Code */
+      },
+    });
   }
 
   async saveCustomDocument(doc: ExcelDocument): Promise<void> {

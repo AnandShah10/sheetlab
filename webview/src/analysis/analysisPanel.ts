@@ -50,6 +50,39 @@ interface CellExplanation {
   dependentCount: number;
 }
 
+interface ColumnStatsView {
+  sheetName: string;
+  col: number;
+  label: string;
+  count: number;
+  nonBlank: number;
+  blank: number;
+  numbers: number;
+  texts: number;
+  dates: number;
+  bools: number;
+  errors: number;
+  formulas: number;
+  unique: number;
+  min?: number;
+  max?: number;
+  sum?: number;
+  mean?: number;
+  median?: number;
+  stdev?: number;
+  topValues: Array<{ value: string; count: number }>;
+  histogram?: Array<{ from: number; to: number; count: number; label: string }>;
+}
+
+interface ChartView {
+  kind: 'histogram' | 'bar' | 'line' | 'pie';
+  title: string;
+  sheetName: string;
+  labels: string[];
+  series: Array<{ name: string; values: number[] }>;
+  note?: string;
+}
+
 interface GitDiffEntry {
   sheet: string;
   a1: string;
@@ -115,7 +148,7 @@ export class AnalysisPanel {
   private resizeHandle!: HTMLDivElement;
   private static readonly WIDTH_KEY = 'sheetlab.toolsPanelWidth';
   private static readonly MIN_W = 220;
-  private static readonly MAX_W = 560;
+  private static readonly MAX_W = 720;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -143,6 +176,14 @@ export class AnalysisPanel {
         this.setSection('analyze', false);
         this.renderExplanation(msg.explanation as CellExplanation);
       }
+      if (msg.type === 'analysisColumnStats') {
+        this.open();
+        this.renderColumnStats(msg.stats as ColumnStatsView);
+      }
+      // Quick analysisChart ignored here — use Charts modal
+
+      // analysisAdvancedResult is handled by ChartsModal (full-size workspace), not Tools
+
       if (msg.type === 'analysisGitDiff') {
         this.open();
         this.setSection('git', false);
@@ -224,30 +265,77 @@ export class AnalysisPanel {
     }
   }
 
+  private panelHeight: number | null = null;
+
   private attachResize(): void {
-    let startX = 0;
-    let startW = 0;
-    const onMove = (e: MouseEvent) => {
-      // Handle is on the left edge: dragging left increases width
-      const dx = startX - e.clientX;
-      this.panelWidth = startW + dx;
-      this.applyWidth();
-    };
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      this.saveWidth();
-      this.resizeHandle.classList.remove('is-dragging');
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-    this.resizeHandle.addEventListener('mousedown', (e) => {
+    // Left edge (primary dock resize — width)
+    this.bindEdgeResize(this.resizeHandle, 'w');
+
+    // Extra handles: top, bottom, right, corners
+    const edges = [
+      ['n', 'sheetlab-tools-resize-n'],
+      ['s', 'sheetlab-tools-resize-s'],
+      ['e', 'sheetlab-tools-resize-e'],
+      ['ne', 'sheetlab-tools-resize-ne'],
+      ['nw', 'sheetlab-tools-resize-nw'],
+      ['se', 'sheetlab-tools-resize-se'],
+      ['sw', 'sheetlab-tools-resize-sw'],
+    ] as const;
+    for (const [edge, cls] of edges) {
+      const h = document.createElement('div');
+      h.className = `sheetlab-tools-resize-extra ${cls}`;
+      h.dataset.edge = edge;
+      this.container.appendChild(h);
+      this.bindEdgeResize(h, edge);
+    }
+  }
+
+  private bindEdgeResize(handle: HTMLElement, edge: string): void {
+    handle.addEventListener('mousedown', (e) => {
       e.preventDefault();
-      startX = e.clientX;
-      startW = this.panelWidth;
-      this.resizeHandle.classList.add('is-dragging');
-      document.body.style.cursor = 'col-resize';
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startW = this.panelWidth;
+      const startH = this.panelHeight ?? this.container.getBoundingClientRect().height;
+      const cursors: Record<string, string> = {
+        n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize',
+        ne: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize', sw: 'nesw-resize',
+      };
+      document.body.style.cursor = cursors[edge] ?? 'col-resize';
       document.body.style.userSelect = 'none';
+      handle.classList.add('is-dragging');
+      const onMove = (ev: MouseEvent) => {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (edge.includes('w')) {
+          // left edge of right-docked panel: drag left = wider
+          this.panelWidth = startW - dx;
+          this.applyWidth();
+        }
+        if (edge.includes('e')) {
+          this.panelWidth = startW + dx;
+          this.applyWidth();
+        }
+        if (edge.includes('n') || edge.includes('s')) {
+          let h = startH;
+          if (edge.includes('s')) h = startH + dy;
+          if (edge.includes('n')) h = startH - dy;
+          h = Math.min(Math.max(h, 200), window.innerHeight - 40);
+          this.panelHeight = h;
+          this.container.style.height = `${h}px`;
+          this.container.style.maxHeight = `${h}px`;
+          this.container.style.alignSelf = 'stretch';
+        }
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        this.saveWidth();
+        handle.classList.remove('is-dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     });
@@ -275,6 +363,28 @@ export class AnalysisPanel {
     postToHost({ type: 'runLinter' });
     this.open();
     this.setStatus('Running linter…');
+  }
+
+
+  requestColumnStats(): void {
+    this.open();
+    this.setStatus('Computing stats…');
+    postToHost({
+      type: 'runColumnStats',
+      sheetName: appState.activeSheet,
+      col: appState.selection.active.col,
+    });
+  }
+
+  requestChart(kind: 'histogram' | 'bar' | 'line' | 'pie'): void {
+    this.open();
+    this.setStatus('Building chart…');
+    postToHost({
+      type: 'runChart',
+      sheetName: appState.activeSheet,
+      col: appState.selection.active.col,
+      kind,
+    });
   }
 
   requestProfile(): void {
@@ -423,6 +533,7 @@ export class AnalysisPanel {
       chip('Fix column', 'Preview formula fixes for outlier cells in column', () => this.requestColumnFixes());
       chip('Lint', 'Workbook-wide structure/formula checks', () => this.requestLinter());
       chip('Profile', 'Sheets, formulas, cycles summary', () => this.requestProfile());
+      chip('Column stats', 'Quick describe active column', () => this.requestColumnStats());
       chip('Explain WB', 'Structural overview of the workbook', () => this.host('sheetlab.explainWorkbook', 'Explaining workbook…'));
     } else if (id === 'navigate') {
       chip('Symbol…', 'Go to sheet, table, name, or formula', () => this.host('sheetlab.goToSymbol', 'Go to Symbol…'));
@@ -638,6 +749,100 @@ export class AnalysisPanel {
   }
 
 
+
+
+  private renderColumnStats(s: ColumnStatsView): void {
+    this.setStatus(`${s.label} · ${s.nonBlank} values`);
+    this.body.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'sheetlab-tools-result-title';
+    title.textContent = `Column stats · ${s.label}`;
+    this.body.appendChild(title);
+    const sub = document.createElement('div');
+    sub.className = 'sheetlab-tools-muted';
+    sub.textContent = `${s.sheetName}`;
+    this.body.appendChild(sub);
+
+    const grid = document.createElement('div');
+    grid.className = 'sheetlab-stats-grid';
+    const cards: Array<[string, string]> = [
+      ['Non-blank', String(s.nonBlank)],
+      ['Blank', String(s.blank)],
+      ['Unique', String(s.unique)],
+      ['Numbers', String(s.numbers)],
+      ['Text', String(s.texts)],
+      ['Dates', String(s.dates)],
+      ['Formulas', String(s.formulas)],
+      ['Errors', String(s.errors)],
+    ];
+    if (s.min !== undefined) cards.push(['Min', fmt(s.min)]);
+    if (s.max !== undefined) cards.push(['Max', fmt(s.max)]);
+    if (s.mean !== undefined) cards.push(['Mean', fmt(s.mean)]);
+    if (s.median !== undefined) cards.push(['Median', fmt(s.median)]);
+    if (s.stdev !== undefined) cards.push(['Stdev', fmt(s.stdev)]);
+    if (s.sum !== undefined) cards.push(['Sum', fmt(s.sum)]);
+    for (const [k, v] of cards) {
+      const card = document.createElement('div');
+      card.className = 'sheetlab-stats-card';
+      card.innerHTML = `<div class="sheetlab-stats-k">${escapeHtml(k)}</div><div class="sheetlab-stats-v">${escapeHtml(v)}</div>`;
+      grid.appendChild(card);
+    }
+    this.body.appendChild(grid);
+
+    if (s.topValues?.length) {
+      const h = document.createElement('div');
+      h.className = 'sheetlab-tools-result-title';
+      h.style.marginTop = '10px';
+      h.textContent = 'Top values';
+      this.body.appendChild(h);
+      for (const tv of s.topValues.slice(0, 10)) {
+        const row = document.createElement('div');
+        row.className = 'sheetlab-stats-freq';
+        const pct = s.nonBlank ? Math.round((tv.count / s.nonBlank) * 100) : 0;
+        row.innerHTML = `<span class="sheetlab-stats-freq-val">${escapeHtml(tv.value)}</span>
+          <span class="sheetlab-stats-freq-bar"><i style="width:${pct}%"></i></span>
+          <span class="sheetlab-stats-freq-n">${tv.count}</span>`;
+        this.body.appendChild(row);
+      }
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'sheetlab-tools-git-nav';
+    actions.style.marginTop = '8px';
+    for (const [label, kind] of [
+      ['Histogram', 'histogram'],
+      ['Bar', 'bar'],
+      ['Line', 'line'],
+      ['Pie', 'pie'],
+    ] as const) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sheetlab-tools-chip';
+      b.textContent = label;
+      b.addEventListener('click', () => this.requestChart(kind));
+      actions.appendChild(b);
+    }
+    this.body.appendChild(actions);
+  }
+
+  private renderChart(c: ChartView): void {
+    this.setStatus(c.title);
+    this.body.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'sheetlab-tools-result-title';
+    title.textContent = c.title;
+    this.body.appendChild(title);
+    if (c.note) {
+      const n = document.createElement('div');
+      n.className = 'sheetlab-tools-muted';
+      n.textContent = c.note;
+      this.body.appendChild(n);
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'sheetlab-chart-wrap';
+    wrap.appendChild(buildSvgChart(c));
+    this.body.appendChild(wrap);
+  }
 
   private applyHighlightsFromDiffs(diffs: GitDiffEntry[]): void {
     const map: typeof appState.diffHighlights = {};
@@ -985,4 +1190,154 @@ function a1(row: number, col: number): string {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function fmt(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  if (Math.abs(n) >= 1e6 || (Math.abs(n) > 0 && Math.abs(n) < 1e-3)) return n.toExponential(2);
+  return (Math.round(n * 1000) / 1000).toLocaleString();
+}
+
+function buildSvgChart(c: ChartView): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const W = 320;
+  const H = c.kind === 'pie' ? 240 : 200;
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('class', 'sheetlab-chart-svg');
+
+  const values = c.series[0]?.values ?? [];
+  const labels = c.labels;
+  if (!values.length) {
+    const t = document.createElementNS(ns, 'text');
+    t.setAttribute('x', '16');
+    t.setAttribute('y', '24');
+    t.setAttribute('fill', 'currentColor');
+    t.textContent = 'No data for this chart.';
+    svg.appendChild(t);
+    return svg;
+  }
+
+  const colors = ['#3b82f6', '#22c55e', '#eab308', '#ef4444', '#a855f7', '#06b6d4', '#f97316', '#ec4899'];
+
+  if (c.kind === 'pie') {
+    const total = values.reduce((a, b) => a + b, 0) || 1;
+    const cx = W / 2;
+    const cy = H / 2 - 8;
+    const r = Math.min(cx, cy) - 20;
+    let angle = -Math.PI / 2;
+    values.forEach((v, i) => {
+      const slice = (v / total) * Math.PI * 2;
+      const x1 = cx + r * Math.cos(angle);
+      const y1 = cy + r * Math.sin(angle);
+      angle += slice;
+      const x2 = cx + r * Math.cos(angle);
+      const y2 = cy + r * Math.sin(angle);
+      const large = slice > Math.PI ? 1 : 0;
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute(
+        'd',
+        `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`,
+      );
+      path.setAttribute('fill', colors[i % colors.length]);
+      path.setAttribute('opacity', '0.9');
+      svg.appendChild(path);
+    });
+    return svg;
+  }
+
+  // bar / histogram / line
+  const padL = 36;
+  const padR = 12;
+  const padT = 16;
+  const padB = 36;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const maxV = Math.max(...values, 1);
+  const n = values.length;
+  const gap = c.kind === 'line' ? 0 : 4;
+  const barW = c.kind === 'line' ? 0 : Math.max(2, (plotW - gap * (n - 1)) / n);
+
+  // axis
+  const axis = document.createElementNS(ns, 'line');
+  axis.setAttribute('x1', String(padL));
+  axis.setAttribute('y1', String(padT + plotH));
+  axis.setAttribute('x2', String(padL + plotW));
+  axis.setAttribute('y2', String(padT + plotH));
+  axis.setAttribute('stroke', 'currentColor');
+  axis.setAttribute('opacity', '0.3');
+  svg.appendChild(axis);
+
+  if (c.kind === 'line') {
+    let d = '';
+    values.forEach((v, i) => {
+      const x = padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+      const y = padT + plotH - (v / maxV) * plotH;
+      d += (i === 0 ? 'M' : 'L') + ` ${x} ${y}`;
+    });
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', colors[0]);
+    path.setAttribute('stroke-width', '2');
+    svg.appendChild(path);
+    values.forEach((v, i) => {
+      const x = padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+      const y = padT + plotH - (v / maxV) * plotH;
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', String(x));
+      dot.setAttribute('cy', String(y));
+      dot.setAttribute('r', '2.5');
+      dot.setAttribute('fill', colors[0]);
+      svg.appendChild(dot);
+    });
+  } else {
+    values.forEach((v, i) => {
+      const h = (v / maxV) * plotH;
+      const x = padL + i * (barW + gap);
+      const y = padT + plotH - h;
+      const rect = document.createElementNS(ns, 'rect');
+      rect.setAttribute('x', String(x));
+      rect.setAttribute('y', String(y));
+      rect.setAttribute('width', String(barW));
+      rect.setAttribute('height', String(Math.max(h, 1)));
+      rect.setAttribute('fill', colors[i % colors.length]);
+      rect.setAttribute('opacity', '0.85');
+      rect.setAttribute('rx', '2');
+      svg.appendChild(rect);
+    });
+  }
+
+  // sparse labels
+  const step = Math.max(1, Math.ceil(n / 6));
+  labels.forEach((lab, i) => {
+    if (i % step !== 0 && i !== n - 1) return;
+    const x =
+      c.kind === 'line'
+        ? padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW)
+        : padL + i * (barW + gap) + barW / 2;
+    const text = document.createElementNS(ns, 'text');
+    text.setAttribute('x', String(x));
+    text.setAttribute('y', String(H - 8));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', 'currentColor');
+    text.setAttribute('font-size', '9');
+    text.setAttribute('opacity', '0.75');
+    text.textContent = lab.length > 10 ? lab.slice(0, 9) + '…' : lab;
+    svg.appendChild(text);
+  });
+
+  // max label
+  const maxLab = document.createElementNS(ns, 'text');
+  maxLab.setAttribute('x', String(padL - 4));
+  maxLab.setAttribute('y', String(padT + 4));
+  maxLab.setAttribute('text-anchor', 'end');
+  maxLab.setAttribute('fill', 'currentColor');
+  maxLab.setAttribute('font-size', '9');
+  maxLab.setAttribute('opacity', '0.75');
+  maxLab.textContent = String(Math.round(maxV * 100) / 100);
+  svg.appendChild(maxLab);
+
+  return svg;
 }
